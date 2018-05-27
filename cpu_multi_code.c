@@ -3,34 +3,36 @@
 #include <string.h>
 
 #define ARQUIVO_ENTRADA "code.bin"
+#define TAMANHO_RAM 256
+#define TAMANHO_PALAVRA 4
 
-int *LeInstrucoesDaEntrada(char *arquivoEntrada) {
+unsigned char RAM[TAMANHO_RAM];
+
+int LeInstrucoesDaEntrada(char *arquivoEntrada) {
+	int byteOffset = 0;
 	if (arquivoEntrada == NULL)
-		return NULL;
+		return byteOffset;
 
 	FILE *fp = fopen(arquivoEntrada, "rb");
 	if (fp == NULL)
-		return NULL;
+		return byteOffset;
 
-	int tamanho = 0;
-	int *instrucoes = NULL;
-	int aux;
-	fread(&aux, sizeof(int), 1, fp);
+	fread(RAM + byteOffset, sizeof(char), 4, fp);
 
 	while (!feof(fp)) {
-		instrucoes = realloc(instrucoes, sizeof(instrucoes) * (++tamanho + 1));
-		instrucoes[0] = tamanho;
-		instrucoes[tamanho] = aux;
-		fread(&aux, sizeof(int), 1, fp);
+		byteOffset += TAMANHO_PALAVRA;
+		if (byteOffset >= TAMANHO_RAM - TAMANHO_PALAVRA)
+			return -1;
+		fread(RAM + byteOffset, sizeof(char), 4, fp);
 	}
 
-	return instrucoes;
+	return 1;
 }
 
 int main() {
 
-	int *instrucoes = LeInstrucoesDaEntrada(ARQUIVO_ENTRADA);
-	if (instrucoes == NULL) {
+	int instrucoes = LeInstrucoesDaEntrada(ARQUIVO_ENTRADA);
+	if (instrucoes <= 0) {
 		printf("ERRO! Não foi possível abrir o arquivo de entrada.\n");
 		return 1;
 	}
