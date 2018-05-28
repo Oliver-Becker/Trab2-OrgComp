@@ -8,10 +8,10 @@
 
 int PC;
 int IR;
+int MDR;
 int SaidaUAL;
 int RegistradorA;
 int RegistradorB;
-int MDR;
 int BCO_REG[32];
 char estadoAtual;
 char estadoFuturo;
@@ -28,6 +28,7 @@ void InicializaVariaveisGlobais(){
 	MDR=0;
 	estadoFuturo=0;
 	bitsDeControle=0;
+
 	for(int i=0; i<TAMANHO_RAM; i++)
 		RAM[i]=0;
 	for(int i=0; i<32; i++)
@@ -160,17 +161,19 @@ int muxFontePC(int UALResult){
 	seleciona  = (bitsDeControle >> 8) % 2;
 	seleciona += 2*((bitsDeControle >> 9) % 2);
 
-
 	switch(seleciona){
 		case 0:
 			return UALResult;
 		break;
+		
 		case 1:
 			return SaidaUAL;
 		break;
+		
 		case 2:
-			return //IRresult() << 2; //função que o oliver vai fazer que pega o conteudo da instrução
+			return; //IRresult() << 2; //função que o oliver vai fazer que pega o conteudo da instrução
 		break;
+		
 		case 3:
 			return RegistradorA;
 		break;
@@ -182,17 +185,19 @@ int muxUALFonteB(){
 	seleciona  = (bitsDeControle >> 4) % 2;
 	seleciona += 2*((bitsDeControle >> 5) % 2);
 
-
 	switch(seleciona){
 		case 0:
 			return RegistradorB;
 		break;
+	
 		case 1:
 			return 4;
 		break;
+	
 		case 2:
 			return //IRresult(); //função que o oliver vai fazer que pega o conteudo da instrução
 		break;
+	
 		case 3:
 			return //IRresult() << 2;
 		break;
@@ -206,6 +211,7 @@ int muxUALFonteA(){
 		case 0:
 			return PC;
 		break;
+	
 		case 1:
 			return RegistradorA;
 		break;
@@ -219,6 +225,7 @@ int muxBNE(int UALZero){
 		case 0:
 			return UALZero;
 		break;
+	
 		case 1:
 			return ~UALZero;
 		break;
@@ -232,24 +239,25 @@ int muxIouD(){
 		case 0:
 			return PC;
 		break;
+	
 		case 1:
 			return SaidaUAL;
 		break;
 	}
 }
-
-int muxRegDest(int reg){	
+//tirei o parametro da função e coloquei a fução do oliver pra selecionar o destino
+int muxRegDest(){	
 	int RegDest; //pegar dos bitsDeControle o sinal que determina qual sera passado para frente
 	RegDest = bitsDeControle % 2;
 	RegDest = RegDest + (2*(bitsDeControle >> 1) % 2);
 
 	switch(RegDest){
 		case 0:
-			return reg; 
+			return //função do oliver; 
 		break;
 
 		case 1:
-			return reg;
+			return //função do oliver;
 		break;
 
 		case 2:
@@ -260,7 +268,6 @@ int muxRegDest(int reg){
 
 int muxMemParaReg(){
 	int MemParaReg;
-
 	MemParaReg = (bitsDeControle >> 17) % 2;
 	MemParaReg = MemParaReg + (2*(bitsDeControle >> 18) % 2);
 
@@ -285,7 +292,6 @@ int UALcontrole(){
 	op = (bitsDeControle >> 6) % 2;
 	op+= 2*((bitsDeControle >> 7) % 2);
 	//instrucao= //IRresult() função do Oliver;
-
 
 	switch(op){
 		case 0:
@@ -312,24 +318,78 @@ int UALcontrole(){
 	}
 }
 
-void UAL(){
-
+int PortaEPC(){
+	int PcEscCond;
+	PcEscCond=(bitsDeControle >> 10) % 2;
+	return PcEscCond & muxBNE()%2;
 }
 
-void BR(){
-
+int PortaOUPC(){
+	int PCEsc;
+	PCEsc=(bitsDeControle >> 11) % 2;
+	return PCEsc | PortaEPC()%2;
 }
 
-void Memoria(){
-
+void PCEsc(int UALResult){
+	if(PortaOUPC==1)
+		PC=muxFontePC(UALResult);
 }
 
-void Instrucao(){
+void bancoDeRegistradores(int *RegATemp, int *RegBTemp){
+	*RegATemp=BCO_REG[/*função do oliver*/];
+	*RegBTemp=BCO_REG[/*função do oliver*/];
 
+	int EscReg=(bitsDeControle >> 2) % 2;
+
+	if(EscReg==1)
+		BCO_REG[muxRegDest()]=muxMemParaReg();
 }
 
-void MDR(){
+void UAL(int op, int *UALZero){
+	int a= muxUALFonteA();
+	int b= muxUALFonteB();
+	if(a-b==0) ? *UALZero=1 : *UALZero=0;
 
+	switch(op){
+		case 0:
+			return a + b;
+		break;
+		case 1:
+			return a - b;
+		break;
+		case 2:
+			return a & b;
+		break;
+		case 3:
+			return a | b;
+		break;
+		case 4:
+			if(a-b<0) ? return 1 : return 0;
+		break;
+	}
+}
+
+int Memoria(){
+	int LerMem = (bitsDeControle >> 13) % 2;
+	int EscMem = (bitsDeControle >> 14) % 2;
+	int aux;
+	
+	if(LerMem==1){
+		aux = RAM[muxIouD()] << 24;
+		aux+= RAM[muxIouD()+1] << 16;
+		aux+= RAM[muxIouD()+2] << 8;
+		aux+= RAM[muxIouD()+3];
+	}
+	else if(EscMem==1){
+		RAM[muxIouD()]= RegistradorB >> 24;
+		aux= RegistradorB << 8;
+		RAM[muxIouD()+1]= aux >> 24;
+		aux= RegistradorB << 16;
+		RAM[muxIouD()+2]= aux >> 24;
+		aux= RegistradorB << 24;
+		RAM[muxIouD()+3]= aux >> 24;
+	}
+	return aux;
 }
 
 
@@ -350,7 +410,6 @@ int LeInstrucoesDaEntrada(char *arquivoEntrada) {
 			return -1;
 		fread(RAM + byteOffset, sizeof(char), 4, fp);
 	}
-
 	return 1;
 }
 
@@ -361,7 +420,6 @@ int main(int argc, char const *argv[]){
 		printf("ERRO! Não foi possível abrir o arquivo de entrada.\n");
 		return 1;
 	}
-
 
 	return 0;
 }
