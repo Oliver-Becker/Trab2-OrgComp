@@ -11,7 +11,10 @@ typedef unsigned char byte;
 
 int PC;
 int IR;
+int MDR;
 int SaidaUAL;
+int RegistradorA;
+int RegistradorB;
 int BCO_REG[32];
 char estadoAtual;
 char estadoFuturo;
@@ -19,11 +22,16 @@ unsigned int bitsDeControle;
 unsigned char RAM[TAMANHO_RAM];
 
 void InicializaVariaveisGlobais(){
-	IR=0;
+	IR=0;0,
 	PC=0;
+	SaidaUAL=0;
+	estadoAtual=0;
+	RegistradorA=0;
+	RegistradorB=0;
+	MDR=0;
+	estadoFuturo=0;
 	bitsDeControle=0;
-	estadoAtual = 0;
-	estadoFuturo = 0;
+
 	for(int i=0; i<TAMANHO_RAM; i++)
 		RAM[i]=0;
 	for(int i=0; i<32; i++)
@@ -31,7 +39,7 @@ void InicializaVariaveisGlobais(){
 }
 
 
-void UnidadeDeControle(char codOp){
+void UnidadeDeControle(int codOp){
 	char EA3, EA2, EA1, EA0;
 	EA0 = estadoAtual % 2;
 	EA1 = (estadoAtual >> 1) % 2;
@@ -142,36 +150,227 @@ void UnidadeDeControle(char codOp){
 
 	RegDst0 = (~EA3 & EA2 & EA1 & EA0);
 
-	bitsDeControle = RegDst0 + RegDst1*2 + EscReg*4 + UALFonteA*8 + UALFonteB0*16 + UALFonteB1*32 +
-	UALOp0*64 * UALOp1*128 + FontePC0*256 + FontePC1*512 + PcEscCond*1024 + PCEsc*2048 + IouD*4096 +
-	LerMem*8192 + EscMem*16384 + BNE*32768 + IREsc*65536 + MemParaReg0*131072 + MemParaReg1*262144;
+	bitsDeControle = (RegDst0%2) + (RegDst1%2)*2 + (EscReg%2)*4 + (UALFonteA%2)*8 + 
+	(UALFonteB0%2)*16 + (UALFonteB1%2)*32 + (UALOp0%2)*64 * (UALOp1%2)*128 + (FontePC0%2)*256 + 
+	(FontePC1%2)*512 + (PcEscCond%2)*1024 + (PCEsc%2)*2048 + (IouD%2)*4096 + (LerMem%2)*8192 + 
+	(EscMem%2)*16384 + (BNE%2)*32768 + (IREsc%2)*65536 + (MemParaReg0%2)*131072 +
+	(MemParaReg1%2)*262144;
 
-	estadoFuturo = EF0 + EF1*2 + EF2*4 + EF3*8;	
+	estadoFuturo = (EF0%2) + (EF1%2)*2 + (EF2%2)*4 + (EF3%2)*8;
 } 
 
+int MuxFontePC(int UALResult){
+	int seleciona;
+	seleciona  = (bitsDeControle >> 8) % 2;
+	seleciona += 2*((bitsDeControle >> 9) % 2);
 
-void UALcontrole(){
+	switch(seleciona){
+		case 0:
+			return UALResult;
+
+		case 1:
+			return SaidaUAL;
+		
+		case 2:
+			return; //LeRegistradorInstrucao(25, 0)<< 2;
+		
+		case 3:
+			return RegistradorA;
+	}
+}
+
+int MuxUALFonteB(){
+	int seleciona;
+	seleciona  = (bitsDeControle >> 4) % 2;
+	seleciona += 2*((bitsDeControle >> 5) % 2);
+
+	switch(seleciona){
+		case 0:
+			return RegistradorB;
+	
+		case 1:
+			return 4;
+	
+		case 2:
+			return //LeRegistradorInstrucao(15, 0); //função que o oliver vai fazer que pega o conteudo da instrução
+	
+		case 3:
+			return //LeRegistradorInstrucao(15, 0) << 2;
+	}
+}
+int MuxUALFonteA(){
+	int seleciona;
+	seleciona  = (bitsDeControle >> 3) % 2;
+
+	switch(seleciona){
+		case 0:
+			return PC;
+	
+		case 1:
+			return RegistradorA;
+	}
+}
+int MuxBNE(int UALZero){
+	int seleciona;
+	seleciona  = (bitsDeControle >> 15) % 2;
+
+	switch(seleciona){
+		case 0:
+			return UALZero;
+	
+		case 1:
+			return ~UALZero;
+	}
+}
+int MuxIouD(){
+	int seleciona;
+	seleciona  = (bitsDeControle >> 12) % 2;
+
+	switch(seleciona){
+		case 0:
+			return PC;
+
+		case 1:
+			return SaidaUAL;
+	}
+}
+//tirei o parametro da função e coloquei a fução do oliver pra selecionar o destino
+int MuxRegDest(){	
+	int RegDest; //pegar dos bitsDeControle o sinal que determina qual sera passado para frente
+	RegDest = bitsDeControle % 2;
+	RegDest = RegDest + (2*(bitsDeControle >> 1) % 2);
+
+	switch(RegDest){
+		case 0:
+			return //LeRegistradorInstrucao(20, 16); 
+
+		case 1:
+			return //LeRegistradorInstrucao(15, 11);
+
+		case 2:
+			return 31;
+	}
+}
+
+int MuxMemParaReg(){
+	int MemParaReg;
+	MemParaReg = (bitsDeControle >> 17) % 2;
+	MemParaReg = MemParaReg + (2*(bitsDeControle >> 18) % 2);
+
+	switch(MemParaReg){
+		case 0:
+			return SaidaUAL; 
+
+		case 1:
+			return MDR; //aqui ainda nao se sabe de nada
+
+		case 2:
+			return PC;
+	}
 
 }
 
-void UAL(){
+int UALcontrole(){
+	int op, instrucao;
+	op = (bitsDeControle >> 6) % 2;
+	op+= 2*((bitsDeControle >> 7) % 2);
+	//instrucao= LeRegistradorInstrucao(5, 0);
 
+	switch(op){
+		case 0:
+			return 0;//representa soma para a ULA
+
+		case 1:
+			return 1;//representa subtração
+
+		case 2://de acordo com a instrução
+			if(instrucao==32)
+				return 0;//add 
+			else if(instrucao==34)
+				return 1;//sub
+			else if(instrucao==36)
+				return 2;//and
+			else if(instrucao==37)
+				return 3;//or
+			else if(instrucao==42)
+				return 4;//slt
+
+		case 3:
+			return 2;//and
+	}
 }
 
-void BR(){
-
+int PortaEPC(int UALZero){
+	int PcEscCond;
+	PcEscCond=(bitsDeControle >> 10) % 2;
+	return PcEscCond & muxBNE(UALZero)%2;
 }
 
-void Memoria(){
-
+int PortaOUPC(UALZero){
+	int PCEsc;
+	PCEsc=(bitsDeControle >> 11) % 2;
+	return PCEsc | PortaEPC(UALZero)%2;
 }
 
-void Instrucao(){
-
+void EscreveNoPC(int UALResult, int UALZero){
+	if(PortaOUPC(UALZero)==1)
+		PC=muxFontePC(UALResult);
 }
 
-void MDR(){
+void BancoDeRegistradores(int *RegATemp, int *RegBTemp){
+	*RegATemp=BCO_REG[/*LeRegistradorInstrucao(25, 21)*/];
+	*RegBTemp=BCO_REG[/*LeRegistradorInstrucao(20, 16)*/];
 
+	int EscReg=(bitsDeControle >> 2) % 2;
+
+	if(EscReg==1)
+		BCO_REG[muxRegDest()]=muxMemParaReg();
+}
+
+int UAL(int op, int *UALZero){
+	int a= muxUALFonteA();
+	int b= muxUALFonteB();
+	(a-b==0) ? *UALZero=1 : *UALZero=0;
+
+	switch(op){
+		case 0:
+			return a + b;
+
+		case 1:
+			return a - b;
+
+		case 2:
+			return a & b;
+
+		case 3:
+			return a | b;
+
+		case 4:
+			(a-b<0) ? return 1 : return 0;
+	}
+}
+
+int Memoria(){
+	int LerMem = (bitsDeControle >> 13) % 2;
+	int EscMem = (bitsDeControle >> 14) % 2;
+	int aux;
+	
+	if(LerMem==1){
+		aux = RAM[muxIouD()] << 24;
+		aux+= RAM[muxIouD()+1] << 16;
+		aux+= RAM[muxIouD()+2] << 8;
+		aux+= RAM[muxIouD()+3];
+	}
+	else if(EscMem==1){
+		RAM[muxIouD()]= RegistradorB >> 24;
+		aux= RegistradorB << 8;
+		RAM[muxIouD()+1]= aux >> 24;
+		aux= RegistradorB << 16;
+		RAM[muxIouD()+2]= aux >> 24;
+		aux= RegistradorB << 24;
+		RAM[muxIouD()+3]= aux >> 24;
+	}
+	return aux;
 }
 
 unsigned int LeRegistradorInstrucao(int bitInicial, int bitFinal) {
@@ -198,7 +397,6 @@ int LeInstrucoesDaEntrada(char *arquivoEntrada) {
 			return -1;
 		fread(RAM + byteOffset, sizeof(char), 4, fp);
 	}
-
 	return 1;
 }
 
@@ -209,7 +407,6 @@ int main(int argc, char const *argv[]){
 		printf("ERRO! Não foi possível abrir o arquivo de entrada.\n");
 		return 1;
 	}
-
 
 	return 0;
 }
