@@ -19,7 +19,7 @@ unsigned int bitsDeControle;
 unsigned char RAM[TAMANHO_RAM];
 
 void InicializaVariaveisGlobais(){
-	IR=0;
+	IR=0;0,
 	PC=0;
 	SaidaUAL=0;
 	estadoAtual=0;
@@ -153,10 +153,10 @@ void UnidadeDeControle(int codOp){
 	(EscMem%2)*16384 + (BNE%2)*32768 + (IREsc%2)*65536 + (MemParaReg0%2)*131072 +
 	(MemParaReg1%2)*262144;
 
-	estadoFuturo = (EF0%2) + (EF1%2)*2 + (EF2%2)*4 + (EF3%2)*8;	
+	estadoFuturo = (EF0%2) + (EF1%2)*2 + (EF2%2)*4 + (EF3%2)*8;
 } 
 
-int muxFontePC(int UALResult){
+int MuxFontePC(int UALResult){
 	int seleciona;
 	seleciona  = (bitsDeControle >> 8) % 2;
 	seleciona += 2*((bitsDeControle >> 9) % 2);
@@ -164,23 +164,19 @@ int muxFontePC(int UALResult){
 	switch(seleciona){
 		case 0:
 			return UALResult;
-		break;
-		
+
 		case 1:
 			return SaidaUAL;
-		break;
 		
 		case 2:
-			return; //IRresult() << 2; //função que o oliver vai fazer que pega o conteudo da instrução
-		break;
+			return; //LeRegistradorInstrucao(25, 0)<< 2;
 		
 		case 3:
 			return RegistradorA;
-		break;
 	}
 }
 
-int muxUALFonteB(){
+int MuxUALFonteB(){
 	int seleciona;
 	seleciona  = (bitsDeControle >> 4) % 2;
 	seleciona += 2*((bitsDeControle >> 5) % 2);
@@ -188,85 +184,72 @@ int muxUALFonteB(){
 	switch(seleciona){
 		case 0:
 			return RegistradorB;
-		break;
 	
 		case 1:
 			return 4;
-		break;
 	
 		case 2:
-			return //IRresult(); //função que o oliver vai fazer que pega o conteudo da instrução
-		break;
+			return //LeRegistradorInstrucao(15, 0); //função que o oliver vai fazer que pega o conteudo da instrução
 	
 		case 3:
-			return //IRresult() << 2;
-		break;
+			return //LeRegistradorInstrucao(15, 0) << 2;
 	}
 }
-int muxUALFonteA(){
+int MuxUALFonteA(){
 	int seleciona;
 	seleciona  = (bitsDeControle >> 3) % 2;
 
 	switch(seleciona){
 		case 0:
 			return PC;
-		break;
 	
 		case 1:
 			return RegistradorA;
-		break;
 	}
 }
-int muxBNE(int UALZero){
+int MuxBNE(int UALZero){
 	int seleciona;
 	seleciona  = (bitsDeControle >> 15) % 2;
 
 	switch(seleciona){
 		case 0:
 			return UALZero;
-		break;
 	
 		case 1:
 			return ~UALZero;
-		break;
 	}
 }
-int muxIouD(){
+int MuxIouD(){
 	int seleciona;
 	seleciona  = (bitsDeControle >> 12) % 2;
 
 	switch(seleciona){
 		case 0:
 			return PC;
-		break;
-	
+
 		case 1:
 			return SaidaUAL;
-		break;
 	}
 }
 //tirei o parametro da função e coloquei a fução do oliver pra selecionar o destino
-int muxRegDest(){	
+int MuxRegDest(){	
 	int RegDest; //pegar dos bitsDeControle o sinal que determina qual sera passado para frente
 	RegDest = bitsDeControle % 2;
 	RegDest = RegDest + (2*(bitsDeControle >> 1) % 2);
 
 	switch(RegDest){
 		case 0:
-			return //função do oliver; 
-		break;
+			return //LeRegistradorInstrucao(20, 16); 
 
 		case 1:
-			return //função do oliver;
-		break;
+			return //LeRegistradorInstrucao(15, 11);
 
 		case 2:
 			return 31;
-		break;
 	}
 }
 
-int muxMemParaReg(){
+int MuxMemParaReg(){
 	int MemParaReg;
 	MemParaReg = (bitsDeControle >> 17) % 2;
 	MemParaReg = MemParaReg + (2*(bitsDeControle >> 18) % 2);
@@ -274,15 +257,12 @@ int muxMemParaReg(){
 	switch(MemParaReg){
 		case 0:
 			return SaidaUAL; 
-		break;
 
 		case 1:
 			return MDR; //aqui ainda nao se sabe de nada
-		break;
 
 		case 2:
 			return PC;
-		break;
 	}
 
 }
@@ -291,15 +271,15 @@ int UALcontrole(){
 	int op, instrucao;
 	op = (bitsDeControle >> 6) % 2;
 	op+= 2*((bitsDeControle >> 7) % 2);
-	//instrucao= //IRresult() função do Oliver;
+	//instrucao= LeRegistradorInstrucao(5, 0);
 
 	switch(op){
 		case 0:
 			return 0;//representa soma para a ULA
-		break;
+
 		case 1:
 			return 1;//representa subtração
-		break;
+
 		case 2://de acordo com a instrução
 			if(instrucao==32)
 				return 0;//add 
@@ -311,33 +291,32 @@ int UALcontrole(){
 				return 3;//or
 			else if(instrucao==42)
 				return 4;//slt
-		break;
+
 		case 3:
 			return 2;//and
-		break;
 	}
 }
 
-int PortaEPC(){
+int PortaEPC(int UALZero){
 	int PcEscCond;
 	PcEscCond=(bitsDeControle >> 10) % 2;
-	return PcEscCond & muxBNE()%2;
+	return PcEscCond & muxBNE(UALZero)%2;
 }
 
-int PortaOUPC(){
+int PortaOUPC(UALZero){
 	int PCEsc;
 	PCEsc=(bitsDeControle >> 11) % 2;
-	return PCEsc | PortaEPC()%2;
+	return PCEsc | PortaEPC(UALZero)%2;
 }
 
-void PCEsc(int UALResult){
-	if(PortaOUPC==1)
+void EscreveNoPC(int UALResult, int UALZero){
+	if(PortaOUPC(UALZero)==1)
 		PC=muxFontePC(UALResult);
 }
 
-void bancoDeRegistradores(int *RegATemp, int *RegBTemp){
-	*RegATemp=BCO_REG[/*função do oliver*/];
-	*RegBTemp=BCO_REG[/*função do oliver*/];
+void BancoDeRegistradores(int *RegATemp, int *RegBTemp){
+	*RegATemp=BCO_REG[/*LeRegistradorInstrucao(25, 21)*/];
+	*RegBTemp=BCO_REG[/*LeRegistradorInstrucao(20, 16)*/];
 
 	int EscReg=(bitsDeControle >> 2) % 2;
 
@@ -345,27 +324,26 @@ void bancoDeRegistradores(int *RegATemp, int *RegBTemp){
 		BCO_REG[muxRegDest()]=muxMemParaReg();
 }
 
-void UAL(int op, int *UALZero){
+int UAL(int op, int *UALZero){
 	int a= muxUALFonteA();
 	int b= muxUALFonteB();
-	if(a-b==0) ? *UALZero=1 : *UALZero=0;
+	(a-b==0) ? *UALZero=1 : *UALZero=0;
 
 	switch(op){
 		case 0:
 			return a + b;
-		break;
+
 		case 1:
 			return a - b;
-		break;
+
 		case 2:
 			return a & b;
-		break;
+
 		case 3:
 			return a | b;
-		break;
+
 		case 4:
-			if(a-b<0) ? return 1 : return 0;
-		break;
+			(a-b<0) ? return 1 : return 0;
 	}
 }
 
