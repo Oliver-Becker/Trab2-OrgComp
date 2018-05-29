@@ -38,6 +38,12 @@ void InicializaVariaveisGlobais(){
 		BCO_REG[i]=0;
 }
 
+unsigned int LeRegistradorInstrucao(int bitInicial, int bitFinal) {
+	if (bitInicial <= bitFinal || bitInicial < 31 || bitFinal > 0)
+		return -1;
+
+	return (IR << 31 - bitInicial) >> (31 - bitInicial + bitFinal);
+}
 
 void UnidadeDeControle(int codOp){
 	char EA3, EA2, EA1, EA0;
@@ -172,7 +178,7 @@ int MuxFontePC(int UALResult){
 			return SaidaUAL;
 		
 		case 2:
-			return; //LeRegistradorInstrucao(25, 0)<< 2;
+			return LeRegistradorInstrucao(25, 0)<< 2;
 		
 		case 3:
 			return RegistradorA;
@@ -192,10 +198,10 @@ int MuxUALFonteB(){
 			return 4;
 	
 		case 2:
-			return //LeRegistradorInstrucao(15, 0); //função que o oliver vai fazer que pega o conteudo da instrução
+			return LeRegistradorInstrucao(15, 0);
 	
 		case 3:
-			return //LeRegistradorInstrucao(15, 0) << 2;
+			return LeRegistradorInstrucao(15, 0) << 2;
 	}
 }
 int MuxUALFonteA(){
@@ -242,10 +248,10 @@ int MuxRegDest(){
 
 	switch(RegDest){
 		case 0:
-			return //LeRegistradorInstrucao(20, 16); 
+			return LeRegistradorInstrucao(20, 16); 
 
 		case 1:
-			return //LeRegistradorInstrucao(15, 11);
+			return LeRegistradorInstrucao(15, 11);
 
 		case 2:
 			return 31;
@@ -274,7 +280,7 @@ int UALcontrole(){
 	int op, instrucao;
 	op = (bitsDeControle >> 6) % 2;
 	op+= 2*((bitsDeControle >> 7) % 2);
-	//instrucao= LeRegistradorInstrucao(5, 0);
+	instrucao= LeRegistradorInstrucao(5, 0);
 
 	switch(op){
 		case 0:
@@ -303,34 +309,34 @@ int UALcontrole(){
 int PortaEPC(int UALZero){
 	int PcEscCond;
 	PcEscCond=(bitsDeControle >> 10) % 2;
-	return PcEscCond & muxBNE(UALZero)%2;
+	return PcEscCond & MuxBNE(UALZero)%2;
 }
 
-int PortaOUPC(UALZero){
+int PortaOUPC(int UALZero){
 	int PCEsc;
 	PCEsc=(bitsDeControle >> 11) % 2;
-	return PCEsc | PortaEPC(UALZero)%2;
+	return PCEsc | (PortaEPC(UALZero)%2);
 }
 
 void EscreveNoPC(int UALResult, int UALZero){
 	if(PortaOUPC(UALZero)==1)
-		PC=muxFontePC(UALResult);
+		PC=MuxFontePC(UALResult);
 }
 
 void BancoDeRegistradores(int *RegATemp, int *RegBTemp){
-	*RegATemp=BCO_REG[/*LeRegistradorInstrucao(25, 21)*/];
-	*RegBTemp=BCO_REG[/*LeRegistradorInstrucao(20, 16)*/];
+	*RegATemp=BCO_REG[LeRegistradorInstrucao(25, 21)];
+	*RegBTemp=BCO_REG[LeRegistradorInstrucao(20, 16)];
 
 	int EscReg=(bitsDeControle >> 2) % 2;
 
 	if(EscReg==1)
-		BCO_REG[muxRegDest()]=muxMemParaReg();
+		BCO_REG[MuxRegDest()]=MuxMemParaReg();
 }
 
 int UAL(int op, int *UALZero){
-	int a= muxUALFonteA();
-	int b= muxUALFonteB();
-	(a-b==0) ? *UALZero=1 : *UALZero=0;
+	int a= MuxUALFonteA();
+	int b= MuxUALFonteB();
+	(a-b==0) ? (*UALZero=1) : (*UALZero=0);
 
 	switch(op){
 		case 0:
@@ -346,38 +352,31 @@ int UAL(int op, int *UALZero){
 			return a | b;
 
 		case 4:
-			(a-b<0) ? return 1 : return 0;
+			return (a-b<0) ? 1 : 0;
 	}
 }
 
 int Memoria(){
 	int LerMem = (bitsDeControle >> 13) % 2;
 	int EscMem = (bitsDeControle >> 14) % 2;
-	int aux;
+	int aux = 0;
 	
 	if(LerMem==1){
-		aux = RAM[muxIouD()] << 24;
-		aux+= RAM[muxIouD()+1] << 16;
-		aux+= RAM[muxIouD()+2] << 8;
-		aux+= RAM[muxIouD()+3];
+		aux = RAM[MuxIouD()] << 24;
+		aux+= RAM[MuxIouD()+1] << 16;
+		aux+= RAM[MuxIouD()+2] << 8;
+		aux+= RAM[MuxIouD()+3];
 	}
 	else if(EscMem==1){
-		RAM[muxIouD()]= RegistradorB >> 24;
+		RAM[MuxIouD()]= RegistradorB >> 24;
 		aux= RegistradorB << 8;
-		RAM[muxIouD()+1]= aux >> 24;
+		RAM[MuxIouD()+1]= aux >> 24;
 		aux= RegistradorB << 16;
-		RAM[muxIouD()+2]= aux >> 24;
+		RAM[MuxIouD()+2]= aux >> 24;
 		aux= RegistradorB << 24;
-		RAM[muxIouD()+3]= aux >> 24;
+		RAM[MuxIouD()+3]= aux >> 24;
 	}
 	return aux;
-}
-
-unsigned int LeRegistradorInstrucao(int bitInicial, int bitFinal) {
-	if (bitInicial <= bitFinal || bitInicial < 31 || bitFinal > 0)
-		return -1;
-
-	return (IR << 31 - bitInicial) >> (31 - bitInicial + bitFinal);
 }
 
 int LeInstrucoesDaEntrada(char *arquivoEntrada) {
@@ -397,7 +396,12 @@ int LeInstrucoesDaEntrada(char *arquivoEntrada) {
 			return -1;
 		fread(RAM + byteOffset, sizeof(char), 4, fp);
 	}
-	return 1;
+	return byteOffset;
+}
+
+void LeituraIR(int instrucao) {
+	if ((bitsDeControle >> 16) % 2)
+		IR = instrucao;
 }
 
 int main(int argc, char const *argv[]){
@@ -406,6 +410,26 @@ int main(int argc, char const *argv[]){
 	if (instrucoes <= 0) {
 		printf("ERRO! Não foi possível abrir o arquivo de entrada.\n");
 		return 1;
+	}
+
+	int count = instrucoes;
+
+	int IRaux, ULA0;
+	int regA, regB;
+	int ULAres, ULAop;
+	while (count--) {
+		UnidadeDeControle(LeRegistradorInstrucao(31, 26));
+		IRaux = Memoria();
+		BancoDeRegistradores(&regA, &regB);
+		ULAop = UALcontrole();
+		ULAres = UAL(ULAop, &ULA0);
+		
+		LeituraIR(IRaux);
+		MDR = IRaux;
+		RegistradorA = regA;
+		RegistradorB = regB;
+		SaidaUAL = ULAres;
+		EscreveNoPC(ULAres, ULA0);
 	}
 
 	return 0;
