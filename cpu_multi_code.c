@@ -3,7 +3,7 @@
 #include <string.h>
 
 #define ARQUIVO_ENTRADA "code.bin"
-#define TAMANHO_RAM 256
+#define TAMANHO_RAM 1024
 #define TAMANHO_PALAVRA 4
 
 typedef unsigned int registrador;
@@ -409,10 +409,17 @@ int main(int argc, char const *argv[]){
 	int instrucoes = LeInstrucoesDaEntrada(ARQUIVO_ENTRADA);
 	if (instrucoes <= 0) {
 		printf("ERRO! Não foi possível abrir o arquivo de entrada.\n");
-		return 1;
+		return instrucoes;
 	}
 
+	InicializaVariaveisGlobais();
+
 	int count = instrucoes;
+	printf("count: %d\n", count);
+	for(int i = 0; i < count; ++i) {
+		printf("%d", RAM[i]);
+	}
+	printf("\n");
 
 	int IRaux, ULA0;
 	int regA, regB;
@@ -430,6 +437,7 @@ int main(int argc, char const *argv[]){
 		RegistradorB = regB;
 		SaidaUAL = ULAres;
 		EscreveNoPC(ULAres, ULA0);
+		estadoAtual = estadoFuturo;
 	}
 
 	return 0;
