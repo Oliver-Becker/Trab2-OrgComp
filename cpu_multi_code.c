@@ -6,6 +6,9 @@
 #define TAMANHO_RAM 256
 #define TAMANHO_PALAVRA 4
 
+typedef unsigned int registrador;
+typedef unsigned char byte;
+
 int PC;
 int IR;
 int SaidaUAL;
@@ -171,6 +174,12 @@ void MDR(){
 
 }
 
+unsigned int LeRegistradorInstrucao(int bitInicial, int bitFinal) {
+	if (bitInicial <= bitFinal || bitInicial < 31 || bitFinal > 0)
+		return -1;
+
+	return (IR << 31 - bitInicial) >> (31 - bitInicial + bitFinal);
+}
 
 int LeInstrucoesDaEntrada(char *arquivoEntrada) {
 	int byteOffset = 0;
