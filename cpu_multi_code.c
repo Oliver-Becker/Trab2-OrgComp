@@ -7,10 +7,42 @@
 #define TAMANHO_PALAVRA 4
 
 typedef unsigned int registrador;
-typedef unsigned char byte;
+
+typedef struct {
+	unsigned funct:6;
+	unsigned shamt:5;
+	unsigned rd:5;
+	unsigned rt:5;
+	unsigned rs:5;
+	unsigned op:6;
+} TIPO_R;
+
+typedef struct {
+	unsigned immediate:16;
+	unsigned rt:5;
+	unsigned rs:5;
+	unsigned op:6;
+} TIPO_I;
+
+typedef struct {
+	unsigned address:26;
+	unsigned op:6;
+} TIPO_J;
+
+typedef union {
+	unsigned instrucao;
+	TIPO_R r;
+	TIPO_I i;
+	TIPO_J j;
+} INSTRUCAO;
+
+typedef union {
+	unsigned int inteiro;
+	unsigned char byte[4];
+} MEMORIA;
 
 unsigned int PC;
-unsigned int IR;
+INSTRUCAO IR;
 unsigned int MDR;
 unsigned int SaidaUAL;
 unsigned int RegistradorA;
@@ -21,13 +53,8 @@ char estadoFuturo;
 unsigned int bitsDeControle;
 unsigned char RAM[TAMANHO_RAM];
 
-union mem{
-	unsigned int inteiro;
-	unsigned char byte[4];
-};
-
 void InicializaVariaveisGlobais(){
-	IR=0;
+	IR.instrucao = 0;
 	PC=0;
 	SaidaUAL=0;
 	estadoAtual=0;
@@ -41,13 +68,6 @@ void InicializaVariaveisGlobais(){
 		RAM[i]=0;
 	for(int i=0; i<32; i++)
 		BCO_REG[i]=0;
-}
-
-unsigned int LeRegistradorInstrucao(unsigned int bitInicial, unsigned int bitFinal) {
-	if (bitInicial <= bitFinal || bitInicial > 31 || bitFinal < 0)
-		return -1;
-
-	return (unsigned int)(IR << (unsigned int)31 - bitInicial) >> (unsigned int)(31 - (unsigned int)bitInicial + bitFinal);
 }
 
 void UnidadeDeControle(int codOp){
@@ -185,7 +205,7 @@ int MuxFontePC(int UALResult){
 			return SaidaUAL;
 		
 		case 2:
-			return LeRegistradorInstrucao(25, 0)<< 2;
+			return IR.j.address;
 		
 		case 3:
 			return RegistradorA;
@@ -205,10 +225,10 @@ int MuxUALFonteB(){
 			return 4;
 	
 		case 2:
-			return LeRegistradorInstrucao(15, 0);
+			return IR.i.immediate;
 	
 		case 3:
-			return LeRegistradorInstrucao(15, 0) << 2;
+			return IR.i.immediate << 2;
 	}
 }
 int MuxUALFonteA(){
@@ -255,10 +275,10 @@ int MuxRegDest(){
 
 	switch(RegDest){
 		case 0:
-			return LeRegistradorInstrucao(20, 16); 
+			return IR.r.rt; 
 
 		case 1:
-			return LeRegistradorInstrucao(15, 11);
+			return IR.r.rd;
 
 		case 2:
 			return 31;
@@ -287,7 +307,7 @@ int UALcontrole(){
 	int op, instrucao;
 	op = (bitsDeControle >> 6) % 2;
 	op+= 2*((bitsDeControle >> 7) % 2);
-	instrucao= LeRegistradorInstrucao(5, 0);
+	instrucao= IR.r.funct;
 
 	switch(op){
 		case 0:
@@ -331,8 +351,8 @@ void EscreveNoPC(int UALResult, int UALZero){
 }
 
 void BancoDeRegistradores(int *RegATemp, int *RegBTemp){
-	*RegATemp=BCO_REG[LeRegistradorInstrucao(25, 21)];
-	*RegBTemp=BCO_REG[LeRegistradorInstrucao(20, 16)];
+	*RegATemp=BCO_REG[IR.r.rs];
+	*RegBTemp=BCO_REG[IR.r.rt];
 
 	unsigned int EscReg=(bitsDeControle >> 2) % 2;
 
@@ -394,40 +414,26 @@ int LeInstrucoesDaEntrada(char *arquivoEntrada) {
 	FILE *fp = fopen(arquivoEntrada, "rb");
 	if (fp == NULL)
 		return byteOffset;
-	int aux;
-	//fread(&aux, sizeof(int), 1, fp);
-	fscanf(fp, "%d", &aux);
 
-	RAM[0]= aux >> 24;
-	int aux2= aux << 8;
-	RAM[1]= aux2 >> 24;
-	aux2= aux << 16;
-	RAM[2]= aux2 >> 24;
-	aux2= aux << 24;
-	RAM[3]= aux2 >> 24;
+	MEMORIA memoria;
+	fscanf(fp, "%d", &memoria.inteiro);
 
 	while (!feof(fp)) {
-		byteOffset += TAMANHO_PALAVRA;
 		if (byteOffset >= TAMANHO_RAM - TAMANHO_PALAVRA)
 			return -1;
-		//fread(&aux, sizeof(int), 1, fp);
-		fscanf(fp, "%d", &aux);
-		RAM[byteOffset]= aux >> 24;
-		aux2= aux << 8;
-		RAM[byteOffset+1]= aux2 >> 24;
-		aux2= aux << 16;
-		RAM[byteOffset+2]= aux2 >> 24;
-		aux2= aux << 24;
-		RAM[byteOffset+3]= aux2 >> 24;
-	}
-	printf("ftell =%ld", ftell(fp));
-	return byteOffset;
 
+		for (int i = TAMANHO_PALAVRA; i > 0 ; --i)
+			RAM[byteOffset++] = memoria.byte[i-1];
+
+		fscanf(fp, "%d", &memoria.inteiro);
+	}
+
+	return byteOffset;
 }
 
 void LeituraIR(int instrucao) {
 	if ((bitsDeControle >> 16) % 2)
-		IR = instrucao;
+		IR.instrucao = instrucao;
 }
 
 int main(int argc, char const *argv[]){
@@ -440,24 +446,29 @@ int main(int argc, char const *argv[]){
 	}
 
 
+	MEMORIA memoria;
 	int count = instrucoes/4;
-	printf("count: %d\n", count);
-	for(int i = 0; i < count*4; ++i) {
-		printf("%d", RAM[i]);
+	printf("RAM: \n");
+	for (int i = 0; i < count+3; i++)
+	{
+		memoria.byte[3] = RAM[(i*4)];
+		memoria.byte[2] = RAM[(i*4)+1];
+		memoria.byte[1] = RAM[(i*4)+2];
+		memoria.byte[0] = RAM[(i*4)+3];
+		printf("%u\n", memoria.inteiro);
 	}
-	printf("\n");
 
 	unsigned int IRaux, ULA0;
 	unsigned int regA, regB;
 	unsigned int ULAres, ULAop;
 	while (count) {
 		//printf("count =  %d  estadoAtual =  %d estadoFuturo = %d\n", count, estadoAtual, estadoFuturo);
-		printf("Estado atual = %d\n", estadoAtual);
-		printf("count = %d\n", count);
-		printf("IR = %d\n", IR);
-		//printf("Retorno Func= %d\n", LeRegistradorInstrucao(31, 26));
+		//printf("Estado atual = %d\n", estadoAtual);
+		//printf("count = %d, t8 = %d\n", count, BCO_REG[24]);
+		//printf("IR = %u\n", IR);
+		//printf("Retorno Func= %d\n", IR.j.op);
 
-		UnidadeDeControle(LeRegistradorInstrucao(31, 26));
+		UnidadeDeControle(IR.j.op);
 		IRaux = Memoria();
 		BancoDeRegistradores(&regA, &regB);
 		ULAop = UALcontrole();
@@ -475,7 +486,7 @@ int main(int argc, char const *argv[]){
 	}
 
 	printf("PC: %u\n", PC);
-	printf("IR: %u\n", IR);
+	printf("IR: %u\n", IR.instrucao);
 	printf("MDR: %u\n", MDR);
 	printf("A: %u\n", RegistradorA);
 	printf("B: %u\n", RegistradorB);
@@ -484,7 +495,6 @@ int main(int argc, char const *argv[]){
 	for (int i = 0; i < 32; ++i) {
 		printf("Registrador %d: %d\n", i, BCO_REG[i]);
 	}
-	union mem memoria;
 	printf("RAM: \n");
 	for (int i = 0; i < 32; i++)
 	{
