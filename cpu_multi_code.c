@@ -6,6 +6,13 @@
 #define TAMANHO_RAM 1024
 #define TAMANHO_PALAVRA 4
 
+// Operações da ULA
+#define ADD 0
+#define SUB 1
+#define AND 2
+#define OR  3
+#define SLT 4
+
 typedef unsigned int registrador;
 
 typedef struct {
@@ -41,6 +48,28 @@ typedef union {
 	unsigned char byte[4];
 } MEMORIA;
 
+typedef struct {
+	unsigned RegDst:2;
+	unsigned EscReg:1;
+	unsigned UALFonteA:1;
+	unsigned UALFonteB:2;
+	unsigned UALOp:2;
+	unsigned FontePC:2;
+	unsigned PCEscCond:1;
+	unsigned PCEsc:1;
+	unsigned IouD:1;
+	unsigned LerMem:1;
+	unsigned EscMem:1;
+	unsigned BNE:1;
+	unsigned IREsc:1;
+	unsigned MemParaReg:2;
+} BITS_CONTROLE;
+
+typedef union {
+	unsigned sinal;
+	BITS_CONTROLE bits;
+} SINAL_CONTROLE;
+
 unsigned int PC;
 INSTRUCAO IR;
 unsigned int MDR;
@@ -50,24 +79,24 @@ unsigned int RegistradorB;
 int BCO_REG[32];
 char estadoAtual;
 char estadoFuturo;
-unsigned int bitsDeControle;
+SINAL_CONTROLE sinalDeControle;
 unsigned char RAM[TAMANHO_RAM];
 
 void InicializaVariaveisGlobais(){
 	IR.instrucao = 0;
-	PC=0;
-	SaidaUAL=0;
-	estadoAtual=0;
-	RegistradorA=0;
-	RegistradorB=0;
-	MDR=0;
-	estadoFuturo=0;
-	bitsDeControle=0;
+	PC = 0;
+	SaidaUAL = 0;
+	estadoAtual = 0;
+	RegistradorA = 0;
+	RegistradorB = 0;
+	MDR = 0;
+	estadoFuturo = 0;
+	sinalDeControle.sinal = 0;
 
-	for(int i=0; i<TAMANHO_RAM; i++)
-		RAM[i]=0;
-	for(int i=0; i<32; i++)
-		BCO_REG[i]=0;
+	for(int i = 0; i < TAMANHO_RAM; i++)
+		RAM[i] = 0;
+	for(int i = 0; i < 32; i++)
+		BCO_REG[i] = 0;
 }
 
 void UnidadeDeControle(int codOp){
@@ -87,12 +116,10 @@ void UnidadeDeControle(int codOp){
 
 	unsigned char EF3, EF2, EF1, EF0;
 	unsigned char MemParaReg1, MemParaReg0;
-	unsigned char IREsc, BNE, EscMem, LerMem;
-	unsigned char IouD, PCEsc, PcEscCond;
 	unsigned char FontePC1, FontePC0;
 	unsigned char UALOp1, UALOp0;
-	unsigned char UALFonteB1, UALFonteB0, UALFonteA;
-	unsigned char EscReg, RegDst1, RegDst0;
+	unsigned char UALFonteB1, UALFonteB0;
+	unsigned char RegDst1, RegDst0;
 
 	EF3 = (~EA3 & ~EA2 & ~EA1 & EA0 & ~OP5 & ~OP4 & ~OP3 & OP2 & ~OP1 & ~OP0) | (~EA3 & 
 	~EA2 & ~EA1 & EA0 & ~OP5 & ~OP4 & ~OP3 & ~OP2 & OP1 & ~OP0) | (~EA3 & ~EA2 & ~EA1 & 
@@ -130,20 +157,20 @@ void UnidadeDeControle(int codOp){
 
 	MemParaReg0 = (~EA3 & EA2 & ~EA1 & ~EA0);
 
-	IREsc = (~EA3 & ~EA2 & ~EA1 & ~EA0);
+	sinalDeControle.bits.IREsc = (~EA3 & ~EA2 & ~EA1 & ~EA0);
 
-	BNE = (~EA3 & ~EA2 & ~EA1 & ~EA0);
+	sinalDeControle.bits.BNE = (~EA3 & ~EA2 & ~EA1 & ~EA0);
 
-	EscMem = (~EA3 & EA2 & ~EA1 & EA0);
+	sinalDeControle.bits.EscMem = (~EA3 & EA2 & ~EA1 & EA0);
 
-	LerMem = (~EA3 & ~EA2 & ~EA1 & ~EA0) | (~EA3 & ~EA2 & EA1 & EA0);
+	sinalDeControle.bits.LerMem = (~EA3 & ~EA2 & ~EA1 & ~EA0) | (~EA3 & ~EA2 & EA1 & EA0);
 
-	IouD = (~EA3 & ~EA2 & EA1 & EA0) | (~EA3 & EA2 & ~EA1 & EA0);
+	sinalDeControle.bits.IouD = (~EA3 & ~EA2 & EA1 & EA0) | (~EA3 & EA2 & ~EA1 & EA0);
 
-	PCEsc = (~EA3 & ~EA2 & ~EA1 & ~EA0) | (EA3 & ~EA2 & ~EA1 & EA0) | (EA3 & ~EA2 & EA1 &
-	~EA0) | (EA3 & ~EA2 & EA1 & EA0) | (EA3 & EA2 & ~EA1 & ~EA0);
+	sinalDeControle.bits.PCEsc = (~EA3 & ~EA2 & ~EA1 & ~EA0) | (EA3 & ~EA2 & ~EA1 & EA0) |
+	(EA3 & ~EA2 & EA1 & ~EA0) | (EA3 & ~EA2 & EA1 & EA0) | (EA3 & EA2 & ~EA1 & ~EA0);
 
-	PcEscCond = (EA3 & ~EA2 & ~EA1 & ~EA0) | (EA3 & EA2 & EA1 & EA0);
+	sinalDeControle.bits.PCEscCond = (EA3 & ~EA2 & ~EA1 & ~EA0) | (EA3 & EA2 & EA1 & EA0);
 
 	FontePC1 = (EA3 & ~EA2 & EA1 & ~EA0) | (EA3 & ~EA2 & EA1 & EA0) | (EA3 & EA2 & ~EA1 &
 	~EA0);
@@ -169,241 +196,183 @@ void UnidadeDeControle(int codOp){
 	& ~EA1 & EA0 & ~OP5 & ~OP4 & OP3 & OP2 & ~OP1 & ~OP0) | (~EA3 & ~EA2 & ~EA1 & EA0 & 
 	~OP5 & ~OP4 & ~OP3 & OP2 & ~OP1 & OP0);
 
-	UALFonteA = (~EA3 & ~EA2 & EA1 & ~EA0 & OP5 & ~OP4 & ~OP3 & ~OP2 & OP1 & OP0) | (~EA3 
-	& ~EA2 & EA1 & ~EA0 & OP5 & ~OP4 & OP3 & ~OP2 & OP1 & OP0) | (~EA3 & ~EA2 & EA1 & 
-	~EA0 & ~OP5 & ~OP4 & OP3 & ~OP2 & ~OP1 & ~OP0) | (~EA3 & EA2 & EA1 & ~EA0) | (EA3 & 
+	sinalDeControle.bits.UALFonteA = (~EA3 & ~EA2 & EA1 & ~EA0 & OP5 & ~OP4 & ~OP3 & ~OP2 & OP1 
+	& OP0) | (~EA3 & ~EA2 & EA1 & ~EA0 & OP5 & ~OP4 & OP3 & ~OP2 & OP1 & OP0) | (~EA3 & ~EA2 & 
+	EA1 & ~EA0 & ~OP5 & ~OP4 & OP3 & ~OP2 & ~OP1 & ~OP0) | (~EA3 & EA2 & EA1 & ~EA0) | (EA3 & 
 	~EA2 & ~EA1 & ~EA0) | (EA3 & EA2 & EA1 & EA0) | (EA3 & EA2 & ~EA1 & EA0);
 
-	EscReg = (~EA3 & EA2 & ~EA1 & ~EA0) | (~EA3 & EA2 & EA1 & EA0) | (EA3 & ~EA2 & EA1 &
- 	~EA0) | (EA3 & ~EA2 & EA1 & EA0) | (EA3 & EA2 & EA1 & ~EA0);
+	sinalDeControle.bits.EscReg = (~EA3 & EA2 & ~EA1 & ~EA0) | (~EA3 & EA2 & EA1 & EA0) |
+	(EA3 & ~EA2 & EA1 & ~EA0) | (EA3 & ~EA2 & EA1 & EA0) | (EA3 & EA2 & EA1 & ~EA0);
 
 	RegDst1 = (EA3 & ~EA2 & EA1 & ~EA0);
 
 	RegDst0 = (~EA3 & EA2 & EA1 & EA0);
 
-	bitsDeControle = (RegDst0%2) + (RegDst1%2)*2 + (EscReg%2)*4 + (UALFonteA%2)*8 + 
-	(UALFonteB0%2)*16 + (UALFonteB1%2)*32 + (UALOp0%2)*64 * (UALOp1%2)*128 + (FontePC0%2)*256 + 
-	(FontePC1%2)*512 + (PcEscCond%2)*1024 + (PCEsc%2)*2048 + (IouD%2)*4096 + (LerMem%2)*8192 + 
-	(EscMem%2)*16384 + (BNE%2)*32768 + (IREsc%2)*65536 + (MemParaReg0%2)*131072 +
-	(MemParaReg1%2)*262144;
+	sinalDeControle.bits.RegDst = (RegDst1 << 2) + RegDst0;
+	sinalDeControle.bits.UALFonteB = (UALFonteB1 << 2) + UALFonteB0;
+	sinalDeControle.bits.UALOp = (UALOp1 << 2) + UALOp0;
+	sinalDeControle.bits.FontePC = (FontePC1 << 2) + FontePC0;
+	sinalDeControle.bits.MemParaReg = (MemParaReg1 << 2) + MemParaReg0;
 
 	estadoFuturo = (EF0%2) + (EF1%2)*2 + (EF2%2)*4 + (EF3%2)*8;
 	//printf("UC = %d EF0 = %d EF1 = %d EF2 = %d EF3 = %d \n", estadoFuturo, EF0, EF1, EF2, EF3 );
 	//printf("Estado Futuro= %d\n", estadoFuturo);
 } 
 
-int MuxFontePC(int UALResult){
-	unsigned int seleciona;
-	seleciona  = (bitsDeControle >> 8) % 2;
-	seleciona += 2*((bitsDeControle >> 9) % 2);
+int ExtensaoDeSinal(short int valor16Bits) {
+	return (int)valor16Bits;
+}
 
-	switch(seleciona){
+int Mux1Bit(int sinal, int valorSe0, int valorSe1) {
+	switch(sinal) {
 		case 0:
-			return UALResult;
-
+			return valorSe0;
 		case 1:
-			return SaidaUAL;
-		
+			return valorSe1;
+	}
+	return -1;
+}
+
+int Mux2Bit(int sinal, int valorSe0, int valorSe1, int valorSe2, int valorSe3) {
+	switch(sinal) {
+		case 0:
+			return valorSe0;
+		case 1:
+			return valorSe1;
 		case 2:
-			return IR.j.address;
-		
+			return valorSe2;
 		case 3:
-			return RegistradorA;
+			return valorSe3;
 	}
+	return -1;
 }
 
-int MuxUALFonteB(){
-	unsigned int seleciona;
-	seleciona  = (bitsDeControle >> 4) % 2;
-	seleciona += 2*((bitsDeControle >> 5) % 2);
+int MuxFontePC(int UALResult) {
+	return Mux2Bit(sinalDeControle.bits.FontePC, UALResult, SaidaUAL, IR.j.address, 
+			RegistradorA);
+}
 
-	switch(seleciona){
-		case 0:
-			return RegistradorB;
-	
-		case 1:
-			return 4;
-	
-		case 2:
-			return IR.i.immediate;
-	
-		case 3:
-			return IR.i.immediate << 2;
+int MuxUALFonteB() {
+	return Mux2Bit(sinalDeControle.bits.UALFonteB, RegistradorB, 4,
+			ExtensaoDeSinal(IR.i.immediate), ExtensaoDeSinal(IR.i.immediate) << 2);
+}
+
+int MuxUALFonteA() {
+	return Mux1Bit(sinalDeControle.bits.UALFonteA, PC, RegistradorA);
+}
+
+int MuxBNE(int UALZero) {
+	return Mux1Bit(sinalDeControle.bits.BNE, UALZero, !UALZero);
+}
+
+int MuxIouD() {
+	return Mux1Bit(sinalDeControle.bits.IouD, PC, SaidaUAL);
+}
+
+int MuxRegDest() {	
+	return Mux2Bit(sinalDeControle.bits.RegDst, IR.r.rt, IR.r.rd, 31, -1);
+}
+
+int MuxMemParaReg() {
+	return Mux2Bit(sinalDeControle.bits.MemParaReg, SaidaUAL, MDR, PC, -1);
+}
+
+int SelecionaOperacao(int campoDeFuncao) {
+	switch(campoDeFuncao) {
+		case 32:
+			return ADD;
+		case 34:
+			return SUB;
+		case 36:
+			return AND;
+		case 37:
+			return OR;
+		case 42:
+			return SLT;
+		default:
+			return -1;
 	}
-}
-int MuxUALFonteA(){
-	unsigned int seleciona;
-	seleciona  = (bitsDeControle >> 3) % 2;
-
-	switch(seleciona){
-		case 0:
-			return PC;
-	
-		case 1:
-			return RegistradorA;
-	}
-}
-int MuxBNE(int UALZero){
-	unsigned int seleciona;
-	seleciona  = (bitsDeControle >> 15) % 2;
-
-	switch(seleciona){
-		case 0:
-			return UALZero;
-	
-		case 1:
-			return ~UALZero;
-	}
-}
-int MuxIouD(){
-	unsigned int seleciona;
-	seleciona  = (bitsDeControle >> 12) % 2;
-
-	switch(seleciona){
-		case 0:
-			return PC;
-
-		case 1:
-			return SaidaUAL;
-	}
-}
-//tirei o parametro da função e coloquei a fução do oliver pra selecionar o destino
-int MuxRegDest(){	
-	unsigned int RegDest; //pegar dos bitsDeControle o sinal que determina qual sera passado para frente
-	RegDest = bitsDeControle % 2;
-	RegDest = RegDest + (2*(bitsDeControle >> 1) % 2);
-
-	switch(RegDest){
-		case 0:
-			return IR.r.rt; 
-
-		case 1:
-			return IR.r.rd;
-
-		case 2:
-			return 31;
-	}
+	return -1;
 }
 
-int MuxMemParaReg(){
-	unsigned int MemParaReg;
-	MemParaReg = (bitsDeControle >> 17) % 2;
-	MemParaReg = MemParaReg + (2*(bitsDeControle >> 18) % 2);
-
-	switch(MemParaReg){
-		case 0:
-			return SaidaUAL; 
-
-		case 1:
-			return MDR; //aqui ainda nao se sabe de nada
-
-		case 2:
-			return PC;
-	}
-
+int UALcontrole() {
+	return Mux2Bit(sinalDeControle.bits.UALOp, ADD, SUB, SelecionaOperacao(IR.r.funct), AND);
 }
 
-int UALcontrole(){
-	int op, instrucao;
-	op = (bitsDeControle >> 6) % 2;
-	op+= 2*((bitsDeControle >> 7) % 2);
-	instrucao= IR.r.funct;
-
-	switch(op){
-		case 0:
-			return 0;//representa soma para a ULA
-
-		case 1:
-			return 1;//representa subtração
-
-		case 2://de acordo com a instrução
-			if(instrucao==32)
-				return 0;//add 
-			else if(instrucao==34)
-				return 1;//sub
-			else if(instrucao==36)
-				return 2;//and
-			else if(instrucao==37)
-				return 3;//or
-			else if(instrucao==42)
-				return 4;//slt
-
-		case 3:
-			return 2;//and
-	}
+int PortaEPC(int UALZero) {
+	return sinalDeControle.bits.PCEscCond && MuxBNE(UALZero);
 }
 
-int PortaEPC(int UALZero){
-	unsigned int PcEscCond;
-	PcEscCond=(bitsDeControle >> 10) % 2;
-	return PcEscCond & MuxBNE(UALZero)%2;
+int PortaOUPC(int UALZero) {
+	return sinalDeControle.bits.PCEsc || PortaEPC(UALZero);
 }
 
-int PortaOUPC(int UALZero){
-	unsigned int PCEsc;
-	PCEsc=(bitsDeControle >> 11) % 2;
-	return PCEsc | (PortaEPC(UALZero)%2);
+void EscreveNoPC(int UALResult, int UALZero) {
+	if(PortaOUPC(UALZero) == 1)
+		PC = MuxFontePC(UALResult);
 }
 
-void EscreveNoPC(int UALResult, int UALZero){
-	if(PortaOUPC(UALZero)==1)
-		PC=MuxFontePC(UALResult);
+void BancoDeRegistradores(int *RegATemp, int *RegBTemp) {
+	*RegATemp = BCO_REG[IR.r.rs];
+	*RegBTemp = BCO_REG[IR.r.rt];
+
+	if(sinalDeControle.bits.EscReg == 1)
+		BCO_REG[MuxRegDest()] = MuxMemParaReg();
 }
 
-void BancoDeRegistradores(int *RegATemp, int *RegBTemp){
-	*RegATemp=BCO_REG[IR.r.rs];
-	*RegBTemp=BCO_REG[IR.r.rt];
+int UAL(int op, int *UALZero) {
+	unsigned int a = MuxUALFonteA();
+	unsigned int b = MuxUALFonteB();
+	*UALZero = (a - b == 0) ? 1 : 0;
 
-	unsigned int EscReg=(bitsDeControle >> 2) % 2;
-
-	if(EscReg==1)
-		BCO_REG[MuxRegDest()]=MuxMemParaReg();
-}
-
-int UAL(int op, int *UALZero){
-	unsigned int a= MuxUALFonteA();
-	unsigned int b= MuxUALFonteB();
-	(a-b==0) ? (*UALZero=1) : (*UALZero=0);
-
-	switch(op){
+	switch(op) {
 		case 0:
 			return a + b;
-
 		case 1:
 			return a - b;
-
 		case 2:
 			return a & b;
-
 		case 3:
 			return a | b;
-
 		case 4:
-			return (a-b<0) ? 1 : 0;
+			return (a - b < 0) ? 1 : 0;
 	}
 }
 
-int Memoria(){
-	int LerMem = (bitsDeControle >> 13) % 2;
-	int EscMem = (bitsDeControle >> 14) % 2;
-	int aux = 0;
-	
-	if(LerMem==1){
-		aux = RAM[MuxIouD()] << 24;
-		aux+= RAM[MuxIouD()+1] << 16;
-		aux+= RAM[MuxIouD()+2] << 8;
-		aux+= RAM[MuxIouD()+3];
+int LePalavraDaMemoria(unsigned int byteOffset) {
+	if (byteOffset > TAMANHO_RAM - TAMANHO_PALAVRA)
+		return -1;
+
+	MEMORIA memoria;
+
+	for (int i = TAMANHO_PALAVRA; i > 0 ; --i)
+		 memoria.byte[i-1] = RAM[byteOffset++];
+
+	return memoria.inteiro;
+}
+
+int EscrevePalavraNaMemoria(unsigned int byteOffset, unsigned int palavra) {
+	if (byteOffset > TAMANHO_RAM - TAMANHO_PALAVRA)
+		return -1;
+
+	MEMORIA memoria;
+	memoria.inteiro = palavra;
+
+	for (int i = TAMANHO_PALAVRA; i > 0 ; --i)
+		RAM[byteOffset++] = memoria.byte[i-1];
+
+	return 0;
+}
+
+int Memoria() {
+	if(sinalDeControle.bits.LerMem) {
+		return LePalavraDaMemoria(MuxIouD());
 	}
-	else if(EscMem==1){
-		RAM[MuxIouD()]= RegistradorB >> 24;
-		aux= RegistradorB << 8;
-		RAM[MuxIouD()+1]= aux >> 24;
-		aux= RegistradorB << 16;
-		RAM[MuxIouD()+2]= aux >> 24;
-		aux= RegistradorB << 24;
-		RAM[MuxIouD()+3]= aux >> 24;
+	else if(sinalDeControle.bits.EscMem) {
+		return EscrevePalavraNaMemoria(MuxIouD(), RegistradorB);
 	}
-	return aux;
+
+	return 0;
 }
 
 int LeInstrucoesDaEntrada(char *arquivoEntrada) {
@@ -432,11 +401,11 @@ int LeInstrucoesDaEntrada(char *arquivoEntrada) {
 }
 
 void LeituraIR(int instrucao) {
-	if ((bitsDeControle >> 16) % 2)
+	if (sinalDeControle.bits.IREsc)
 		IR.instrucao = instrucao;
 }
 
-int main(int argc, char const *argv[]){
+int main(int argc, char const *argv[]) {
 
 	InicializaVariaveisGlobais();
 	int instrucoes = LeInstrucoesDaEntrada(ARQUIVO_ENTRADA);
@@ -505,5 +474,6 @@ int main(int argc, char const *argv[]){
 		printf("%u ", memoria.inteiro);
 	}
 	printf("\n");
+
 	return 0;
 }

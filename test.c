@@ -56,22 +56,25 @@ union memoria {
 	unsigned char byte[4];
 };
 
-int main() {
+int ExtensaoDeSinal(short int valor16Bits) {
+	return (int)valor16Bits;
+}
 
+int main() {
 
 	TIPO_R tr;
 	printf("tamanho tipo_r: %zd\n", sizeof(tr));
 
-	union u k;
+/*	union u k;
 	k.intero = 32;
 	printf("intero: %d\n", k.intero);
 	printf("1 bit: %d\n", k.bit.a);
 	printf("2 bit: %d\n", k.bit.b);
 	printf("3 bit: %d\n", k.bit.c);
-
+*/
 	INSTRUCAO i;
-	i.instrucao = 0x20420001;
-	scanf("%x", &i.instrucao);
+	i.instrucao = 0x2042FFFF;
+//	scanf("%x", &i.instrucao);
 
 	printf("\ntipo r:\n");
 	printf("op: %x\n", i.r.op);
@@ -90,6 +93,21 @@ int main() {
 	printf("\ntipo j:\n");
 	printf("op: %x\n", i.j.op);
 	printf("address: %x\n", i.j.address);
+
+	printf("\n\n");
+	printf("int imm: %d\n", i.i.immediate);
+	printf("short imm: %d\n", ExtensaoDeSinal(i.i.immediate));
+	printf("shifted int imm: %d\n", i.i.immediate << 2);
+	printf("shifted short imm: %d\n", ExtensaoDeSinal(i.i.immediate) << 2);
+
+	printf("\n\n");
+
+	int imm = 0xFFFF;
+	printf("int imm: %d\n", imm);
+	printf("short imm: %d\n", (short int)imm);
+
+	short int shimm = imm;
+	printf("short shimm: %hd\n", imm);
 
 	return 0;
 }
