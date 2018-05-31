@@ -97,6 +97,8 @@ void InicializaVariaveisGlobais(){
 		RAM[i] = 0;
 	for(int i = 0; i < 32; i++)
 		BCO_REG[i] = 0;
+
+//	BCO_REG[29] = TAMANHO_RAM;
 }
 
 void UnidadeDeControle(int codOp){
@@ -159,7 +161,7 @@ void UnidadeDeControle(int codOp){
 
 	sinalDeControle.bits.IREsc = (~EA3 & ~EA2 & ~EA1 & ~EA0);
 
-	sinalDeControle.bits.BNE = (~EA3 & ~EA2 & ~EA1 & ~EA0);
+	sinalDeControle.bits.BNE = (EA3 & EA2 & EA1 & EA0);
 
 	sinalDeControle.bits.EscMem = (~EA3 & EA2 & ~EA1 & EA0);
 
@@ -173,7 +175,7 @@ void UnidadeDeControle(int codOp){
 	sinalDeControle.bits.PCEscCond = (EA3 & ~EA2 & ~EA1 & ~EA0) | (EA3 & EA2 & EA1 & EA0);
 
 	FontePC1 = (EA3 & ~EA2 & EA1 & ~EA0) | (EA3 & ~EA2 & EA1 & EA0) | (EA3 & EA2 & ~EA1 &
-	~EA0);
+	~EA0) | (EA3 & ~EA2 & ~EA1 & EA0);
 
 	FontePC0 = (EA3 & ~EA2 & ~EA1 & ~EA0) | (EA3 & ~EA2 & EA1 & EA0) | (EA3 & EA2 & ~EA1 &
 	~EA0) | (EA3 & EA2 & EA1 & EA0);
@@ -208,11 +210,11 @@ void UnidadeDeControle(int codOp){
 
 	RegDst0 = (~EA3 & EA2 & EA1 & EA0);
 
-	sinalDeControle.bits.RegDst = (RegDst1 << 2) + RegDst0;
-	sinalDeControle.bits.UALFonteB = (UALFonteB1 << 2) + UALFonteB0;
-	sinalDeControle.bits.UALOp = (UALOp1 << 2) + UALOp0;
-	sinalDeControle.bits.FontePC = (FontePC1 << 2) + FontePC0;
-	sinalDeControle.bits.MemParaReg = (MemParaReg1 << 2) + MemParaReg0;
+	sinalDeControle.bits.RegDst = (RegDst1 << 1) + RegDst0 % 2;
+	sinalDeControle.bits.UALFonteB = (UALFonteB1 << 1) + UALFonteB0 % 2;
+	sinalDeControle.bits.UALOp = (UALOp1 << 1) + UALOp0 % 2;
+	sinalDeControle.bits.FontePC = (FontePC1 << 1) + FontePC0 % 2;
+	sinalDeControle.bits.MemParaReg = (MemParaReg1 << 1) + MemParaReg0 % 2;
 
 	estadoFuturo = (EF0%2) + (EF1%2)*2 + (EF2%2)*4 + (EF3%2)*8;
 	//printf("UC = %d EF0 = %d EF1 = %d EF2 = %d EF3 = %d \n", estadoFuturo, EF0, EF1, EF2, EF3 );
@@ -248,7 +250,7 @@ int Mux2Bit(int sinal, int valorSe0, int valorSe1, int valorSe2, int valorSe3) {
 }
 
 int MuxFontePC(int UALResult) {
-	return Mux2Bit(sinalDeControle.bits.FontePC, UALResult, SaidaUAL, IR.j.address, 
+	return Mux2Bit(sinalDeControle.bits.FontePC, UALResult, SaidaUAL, IR.j.address << 2, 
 			RegistradorA);
 }
 
@@ -308,7 +310,7 @@ int PortaOUPC(int UALZero) {
 }
 
 void EscreveNoPC(int UALResult, int UALZero) {
-	if(PortaOUPC(UALZero) == 1)
+	if(PortaOUPC(UALZero))
 		PC = MuxFontePC(UALResult);
 }
 
@@ -400,9 +402,44 @@ int LeInstrucoesDaEntrada(char *arquivoEntrada) {
 	return byteOffset;
 }
 
-void LeituraIR(int instrucao) {
+void EscreveNoIR(int instrucao) {
 	if (sinalDeControle.bits.IREsc)
 		IR.instrucao = instrucao;
+}
+
+int OperacaoValida(unsigned int op) {
+	if ((op != 0 && op != 35 && op != 43 && op !=  4 && op !=  2 && op != 3 && op != 20
+		     && op != 21 && op !=  8 && op != 12 && op !=  5) && estadoAtual > 1)
+		return 0;
+
+	return 1;
+}
+
+int CodigoOperacaoValida(unsigned int func) {
+	if (IR.r.op != 0)
+		return 1;
+
+	if (func != 32 && func != 34 && func != 36 && func != 37 && func != 42 && estadoAtual > 1)
+		return 0;
+
+	return 1;
+}
+
+void imprimeTUDO() {
+	printf("RegDst     %d\n", sinalDeControle.bits.RegDst);
+	printf("EscReg     %d\n", sinalDeControle.bits.EscReg);
+	printf("UALFonteA  %d\n", sinalDeControle.bits.UALFonteA);
+	printf("UALFonteB  %d\n", sinalDeControle.bits.UALFonteB);
+	printf("UALOp      %d\n", sinalDeControle.bits.UALOp);
+	printf("FontePC    %d\n", sinalDeControle.bits.FontePC);
+	printf("PCEscCond  %d\n", sinalDeControle.bits.PCEscCond);
+	printf("PCEsc      %d\n", sinalDeControle.bits.PCEsc);
+	printf("IouD       %d\n", sinalDeControle.bits.IouD);
+	printf("LerMem     %d\n", sinalDeControle.bits.LerMem);
+	printf("EscMem     %d\n", sinalDeControle.bits.EscMem);
+	printf("BNE        %d\n", sinalDeControle.bits.BNE);
+	printf("IREsc      %d\n", sinalDeControle.bits.IREsc);
+	printf("MemParaReg %d\n", sinalDeControle.bits.MemParaReg);
 }
 
 int main(int argc, char const *argv[]) {
@@ -416,8 +453,8 @@ int main(int argc, char const *argv[]) {
 
 
 	MEMORIA memoria;
-	int count = instrucoes/4;
-	printf("RAM: \n");
+	int count = 0;
+/*	printf("RAM: \n");
 	for (int i = 0; i < count+3; i++)
 	{
 		memoria.byte[3] = RAM[(i*4)];
@@ -426,33 +463,34 @@ int main(int argc, char const *argv[]) {
 		memoria.byte[0] = RAM[(i*4)+3];
 		printf("%u\n", memoria.inteiro);
 	}
-
+*/
 	unsigned int IRaux, ULA0;
 	unsigned int regA, regB;
 	unsigned int ULAres, ULAop;
-	while (count) {
-		//printf("count =  %d  estadoAtual =  %d estadoFuturo = %d\n", count, estadoAtual, estadoFuturo);
-		//printf("Estado atual = %d\n", estadoAtual);
+	do {
 		//printf("count = %d, t8 = %d\n", count, BCO_REG[24]);
-		//printf("IR = %u\n", IR);
-		//printf("Retorno Func= %d\n", IR.j.op);
+		printf("IR = %u\tPC = %u\n", IR.instrucao, PC);
+		printf("Operação: %d\n", IR.j.op);
 
 		UnidadeDeControle(IR.j.op);
 		IRaux = Memoria();
 		BancoDeRegistradores(&regA, &regB);
 		ULAop = UALcontrole();
 		ULAres = UAL(ULAop, &ULA0);
+		printf("ALUout= %d\n", SaidaUAL);
+
+		printf("ULAop: %d  Campo de função: %d\n", ULAop, IR.r.funct);
+		printf("count =  %d  estadoAtual =  %d estadoFuturo = %d\n", count, estadoAtual, estadoFuturo);
+		imprimeTUDO();
 		
-		LeituraIR(IRaux);
+		EscreveNoIR(IRaux);
 		MDR = IRaux;
 		RegistradorA = regA;
 		RegistradorB = regB;
-		SaidaUAL = ULAres;
 		EscreveNoPC(ULAres, ULA0);
+		SaidaUAL = ULAres;
 		estadoAtual = estadoFuturo;
-		if(estadoAtual==0)
-			count-=1;
-	}
+	} while (OperacaoValida(IR.j.op) && CodigoOperacaoValida(IR.r.funct) && count++ < 440);
 
 	printf("PC: %u\n", PC);
 	printf("IR: %u\n", IR.instrucao);
@@ -460,6 +498,7 @@ int main(int argc, char const *argv[]) {
 	printf("A: %u\n", RegistradorA);
 	printf("B: %u\n", RegistradorB);
 	printf("AluOut: %u\n", SaidaUAL);
+	printf("count = %d, t8 = %d\n", count, BCO_REG[24]);
 
 	for (int i = 0; i < 32; ++i) {
 		printf("Registrador %d: %d\n", i, BCO_REG[i]);
