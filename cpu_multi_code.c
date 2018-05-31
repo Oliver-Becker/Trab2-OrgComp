@@ -2,8 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define ARQUIVO_ENTRADA "code.bin"
-#define TAMANHO_RAM 1024
+#define ARQUIVO_ENTRADA "Testes/teste2.txt"
+#define TAMANHO_RAM 256
 #define TAMANHO_PALAVRA 4
 
 // Operações da ULA
@@ -98,7 +98,7 @@ void InicializaVariaveisGlobais(){
 	for(int i = 0; i < 32; i++)
 		BCO_REG[i] = 0;
 
-//	BCO_REG[29] = TAMANHO_RAM;
+	BCO_REG[29] = TAMANHO_RAM;
 }
 
 void UnidadeDeControle(int codOp){
@@ -323,10 +323,10 @@ void BancoDeRegistradores(int *RegATemp, int *RegBTemp) {
 }
 
 int UAL(int op, int *UALZero) {
-	unsigned int a = MuxUALFonteA();
-	unsigned int b = MuxUALFonteB();
+	int a = MuxUALFonteA();
+	int b = MuxUALFonteB();
 	*UALZero = (a - b == 0) ? 1 : 0;
-
+	printf("a: %d, b: %d\n", a, b);
 	switch(op) {
 		case 0:
 			return a + b;
@@ -377,31 +377,6 @@ int Memoria() {
 	return 0;
 }
 
-int LeInstrucoesDaEntrada(char *arquivoEntrada) {
-	int byteOffset = 0;
-	if (arquivoEntrada == NULL)
-		return byteOffset;
-
-	FILE *fp = fopen(arquivoEntrada, "rb");
-	if (fp == NULL)
-		return byteOffset;
-
-	MEMORIA memoria;
-	fscanf(fp, "%d", &memoria.inteiro);
-
-	while (!feof(fp)) {
-		if (byteOffset >= TAMANHO_RAM - TAMANHO_PALAVRA)
-			return -1;
-
-		for (int i = TAMANHO_PALAVRA; i > 0 ; --i)
-			RAM[byteOffset++] = memoria.byte[i-1];
-
-		fscanf(fp, "%d", &memoria.inteiro);
-	}
-
-	return byteOffset;
-}
-
 void EscreveNoIR(int instrucao) {
 	if (sinalDeControle.bits.IREsc)
 		IR.instrucao = instrucao;
@@ -442,6 +417,27 @@ void imprimeTUDO() {
 	printf("MemParaReg %d\n", sinalDeControle.bits.MemParaReg);
 }
 
+int LeInstrucoesDaEntrada(char *arquivoEntrada) {
+	int byteOffset = 0;
+	if (arquivoEntrada == NULL)
+		return byteOffset;
+
+	FILE *fp = fopen(arquivoEntrada, "rb");
+	if (fp == NULL)
+		return byteOffset;
+
+	MEMORIA memoria;
+	while (fscanf(fp, "%d", &memoria.inteiro) != EOF) {
+		if (byteOffset >= TAMANHO_RAM - TAMANHO_PALAVRA)
+			return -1;
+
+		for (int i = TAMANHO_PALAVRA; i > 0 ; --i)
+			RAM[byteOffset++] = memoria.byte[i-1];
+	}
+
+	return byteOffset;
+}
+
 int main(int argc, char const *argv[]) {
 
 	InicializaVariaveisGlobais();
@@ -454,8 +450,8 @@ int main(int argc, char const *argv[]) {
 
 	MEMORIA memoria;
 	int count = 0;
-/*	printf("RAM: \n");
-	for (int i = 0; i < count+3; i++)
+	printf("RAM: \n");
+	for (int i = 0; i < 35; i++)
 	{
 		memoria.byte[3] = RAM[(i*4)];
 		memoria.byte[2] = RAM[(i*4)+1];
@@ -463,7 +459,7 @@ int main(int argc, char const *argv[]) {
 		memoria.byte[0] = RAM[(i*4)+3];
 		printf("%u\n", memoria.inteiro);
 	}
-*/
+
 	unsigned int IRaux, ULA0;
 	unsigned int regA, regB;
 	unsigned int ULAres, ULAop;
@@ -479,6 +475,8 @@ int main(int argc, char const *argv[]) {
 		ULAres = UAL(ULAop, &ULA0);
 		printf("ALUout= %d\n", SaidaUAL);
 
+		printf("RegA = %d, RegB = %d\n", RegistradorA, RegistradorB);
+		printf("$t0 = %d, $t1 = %d\n", BCO_REG[8], BCO_REG[9]);
 		printf("ULAop: %d  Campo de função: %d\n", ULAop, IR.r.funct);
 		printf("count =  %d  estadoAtual =  %d estadoFuturo = %d\n", count, estadoAtual, estadoFuturo);
 		imprimeTUDO();
