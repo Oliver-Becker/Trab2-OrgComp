@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define ARQUIVO_ENTRADA "Testes/teste2.txt"
+#define ARQUIVO_ENTRADA "code.bin"
 #define TAMANHO_RAM 256
 #define TAMANHO_PALAVRA 4
 
