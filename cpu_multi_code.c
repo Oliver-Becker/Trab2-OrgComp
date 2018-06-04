@@ -1,3 +1,10 @@
+/*
+Turma 2
+Clara Rosa Silveira                9021070            - Unidade de controle, Alterações na MEF
+Gabriela Isabel Chavez Estevez     10295440           - Unidade de controle, Alterações na MEF
+Rafael Farias Roque                10295412           - Caminho de dados, Alterações na MEF
+Óliver Savastano Becker            10284890           - Formatação das variaveis e Caminho de dados
+*/
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -419,7 +426,27 @@ int LeInstrucoesDaEntrada(char *arquivoEntrada) {
 
 	return byteOffset;
 }
-void imprimeSaida(){
+void imprimeSaida(int ERROR){
+
+	switch(ERROR){
+		case 0:
+			printf("Término devido à tentariva de execução de instrução inválida.\n");
+		break;
+
+		case 1:
+			printf("Término devido a acesso inválido de memória.\n");
+		break;
+
+		case 2:
+			printf("Término devido à operação inválida da ULA.\n");
+		break;
+
+		case 3:
+			printf("Término devido a acesso inválido ao Banco De Registradores.\n");
+		break;
+
+	}
+
 	printf("PC: %u\t IR: %u\t MDR: %u\n", PC, IR.instrucao, MDR);
 	printf("A: %u\t B: %u\t AluOut: %u\n", RegistradorA, RegistradorB, SaidaUAL);
 
@@ -455,27 +482,26 @@ void imprimeSaida(){
 		memoria.byte[2] = RAM[(i*4)+1];
 		memoria.byte[1] = RAM[(i*4)+2];
 		memoria.byte[0] = RAM[(i*4)+3];
-		printf("[%d]%u\t ", i ,memoria.inteiro);
+		printf("[%d]%u\t ", i*4 ,memoria.inteiro);
 
 		memoria.byte[3] = RAM[((i+8)*4)];
 		memoria.byte[2] = RAM[((i+8)*4)+1];
 		memoria.byte[1] = RAM[((i+8)*4)+2];
 		memoria.byte[0] = RAM[((i+8)*4)+3];
-		printf("[%d]%u\t ", (i+8) ,memoria.inteiro);
+		printf("[%d]%u\t ", (i+8)*4 ,memoria.inteiro);
 
 		memoria.byte[3] = RAM[((i+16)*4)];
 		memoria.byte[2] = RAM[((i+16)*4)+1];
 		memoria.byte[1] = RAM[((i+16)*4)+2];
 		memoria.byte[0] = RAM[((i+16)*4)+3];
-		printf("[%d]%u\t ", (i+16) ,memoria.inteiro);
+		printf("[%d]%u\t ", (i+16)*4 ,memoria.inteiro);
 
 		memoria.byte[3] = RAM[((i+24)*4)];
 		memoria.byte[2] = RAM[((i+24)*4)+1];
 		memoria.byte[1] = RAM[((i+24)*4)+2];
 		memoria.byte[0] = RAM[((i+24)*4)+3];
-		printf("[%d]%u\t \n", (i+24) ,memoria.inteiro);
+		printf("[%d]%u\t \n", (i+24)*4 ,memoria.inteiro);
 	}
-
 
 }
 
