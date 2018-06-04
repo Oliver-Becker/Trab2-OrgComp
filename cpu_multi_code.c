@@ -308,25 +308,22 @@ int UALcontrole() {
 	return Mux2Bit(sinalDeControle.bits.UALOp, ADD, SUB, SelecionaOperacao(IR.r.funct), AND);
 }
 
-int PortaEPC(int UALZero) {
-	return sinalDeControle.bits.PCEscCond && MuxBNE(UALZero);
+int PortaLogicaAND(int entrada1, int entrada2) {
+	return entrada1 && entrada2;
 }
 
-int PortaOUPC(int UALZero) {
-	return sinalDeControle.bits.PCEsc || PortaEPC(UALZero);
+int PortaLogicaOR(int entrada1, int entrada2) {
+	return entrada1 || entrada2;
 }
 
-void EscreveNoPC(int UALResult, int UALZero) {
-	if(PortaOUPC(UALZero))
-		PC = MuxFontePC(UALResult);
+void EscreveNoPC(int sinalControle, int conteudo) {
+	if(sinalControle)
+		PC = conteudo;
 }
 
-int BancoDeRegistradores(int *RegATemp, int *RegBTemp) {
+int BancoDeRegistradores(unsigned int destino, int conteudo, int *RegATemp, int *RegBTemp) {
 	*RegATemp = BCO_REG[IR.r.rs];
 	*RegBTemp = BCO_REG[IR.r.rt];
-
-	unsigned int destino = MuxRegDest();
-	int conteudo = MuxMemParaReg();
 
 	if(sinalDeControle.bits.EscReg == 1) {
 		if (destino == 0) 	// Tentativa de escrever no registrador $zero (proibido)
@@ -338,22 +335,20 @@ int BancoDeRegistradores(int *RegATemp, int *RegBTemp) {
 	return 0;
 }
 
-int UAL(int op, int *UALZero) {
-	int a = MuxUALFonteA();
-	int b = MuxUALFonteB();
-	*UALZero = (a - b == 0) ? 1 : 0;
+int UAL(int A, int B, int op, int *UALZero) {
+	*UALZero = (A - B == 0) ? 1 : 0;
 
 	switch(op) {
 		case 0:
-			return a + b;
+			return A + B;
 		case 1:
-			return a - b;
+			return A - B;
 		case 2:
-			return a & b;
+			return A & B;
 		case 3:
-			return a | b;
+			return A | B;
 		case 4:
-			return (a - b < 0) ? 1 : 0;
+			return (A - B < 0) ? 1 : 0;
 	}
 }
 
@@ -384,9 +379,7 @@ int EscrevePalavraNaMemoria(unsigned int byteOffset, unsigned int palavra) {
 	return 0;
 }
 
-int Memoria(int* palavraLida) {
-	unsigned int endereco = MuxIouD();
-
+int Memoria(int endereco, int* palavraLida) {
 	if(sinalDeControle.bits.LerMem)
 		return LePalavraDaMemoria(endereco, palavraLida);
 
@@ -396,7 +389,7 @@ int Memoria(int* palavraLida) {
 	return 0;
 }
 
-void EscreveNoIR(int instrucao) {
+void EscreveNoIR(unsigned int instrucao) {
 	if (sinalDeControle.bits.IREsc)
 		IR.instrucao = instrucao;
 }
@@ -420,21 +413,21 @@ int CampoDeFuncaoValido(unsigned int func) {
 }
 
 int LeInstrucoesDaEntrada(char *arquivoEntrada) {
-	int byteOffset = 0;
 	if (arquivoEntrada == NULL)
-		return byteOffset;
+		return 0;
 
 	FILE *fp = fopen(arquivoEntrada, "rb");
-	if (fp == NULL)
-		return byteOffset;
+	if (fp == NULL)		// Erro na abertura do arquivo
+		return 0;
 
 	MEMORIA memoria;
+	int byteOffset = 0;
 	while (fscanf(fp, "%d", &memoria.inteiro) != EOF) {
-		if (byteOffset >= TAMANHO_RAM - TAMANHO_PALAVRA)
-			return -1;
+		if (byteOffset >= TAMANHO_RAM - TAMANHO_PALAVRA) // Leu mais instruções do que a RAM
+			return -1;					// suporta.
 
-		for (int i = TAMANHO_PALAVRA; i > 0 ; --i)
-			RAM[byteOffset++] = memoria.byte[i-1];
+		for (int i = TAMANHO_PALAVRA; i > 0 ; --i)	// Coloca cada byte da instrução
+			RAM[byteOffset++] = memoria.byte[i-1];	// lida na RAM.
 	}
 
 	return byteOffset;
@@ -452,8 +445,8 @@ void imprimeSaida(int ERROR) {
 	else if (ERROR >> 4 & 1)
 		printf("Término devido a acesso inválido ao Banco De Registradores.\n\n");
 
-	printf("PC=%u\t IR=%u\t MDR=%u\n", PC, IR.instrucao, MDR);
-	printf("A=%u\t B=%u\t AluOut=%u\n", RegistradorA, RegistradorB, SaidaUAL);
+	printf("PC=%-10u\tIR=%-10u\tMDR=%-10d\n", PC, IR.instrucao, MDR);
+	printf("A=%-10d\tB=%-10d\tAluOut=%-10d\n", RegistradorA, RegistradorB, SaidaUAL);
 	printf("Controle=%d\n\n", sinalDeControle);
 
 	char nomeRegistrador[QUANTIDADE_REGISTRADORES][3] = {"r0", "at", "v0", "v1", "a0", "a1",
@@ -486,12 +479,12 @@ void imprimeSaida(int ERROR) {
 
 int main(int argc, char *argv[]) {
 
-	if (argc != NARGS) {
-		printf("ERRO! Argumentos para utilizar o programa: %s <nome-arquivo-entrada>\n", 
-				argv[PROGNAME]);
+	if (argc != NARGS) {	// Quantidade de argumentos inválida
+		printf("ERRO! Utilização do programa: %s <nome-arquivo-entrada>\n", argv[PROGNAME]);
 		return -1;
 	}
 
+	// Zera os valores de todo o processador
 	InicializaVariaveisGlobais();
 
 	if (!LeInstrucoesDaEntrada(argv[ARQUIVO_ENTRADA])) {
@@ -503,25 +496,49 @@ int main(int argc, char *argv[]) {
 
 	int erro;
 
-	unsigned int IRaux, ULA0;
+	int conteudoMemoria;
 	unsigned int regA, regB;
-	unsigned int ULAres, ULAop;
+	unsigned int ULAres, ULAop, ULAZero;
+	int muxIouD, muxRegDest, muxMemParaReg, muxUALFonteA, muxUALFonteB, muxFontePC, muxBNE;
+	int saidaPortaOR, saidaPortaAND;
+
 	do {
 		erro = 0;
 		// Chama as unidades funcionais para executarem.
 		UnidadeDeControle(IR.j.op);
-		erro += Memoria(&IRaux);
-		erro += BancoDeRegistradores(&regA, &regB);
+
+		// Execução da unidade de memória (operações de leitura/escrita na RAM).
+		muxIouD = MuxIouD();
+		erro += Memoria(muxIouD, &conteudoMemoria);
+
+		// Execução do banco de registradores (leitura e escrita no banco de registradores).
+		muxRegDest = MuxRegDest();
+		muxMemParaReg = MuxMemParaReg();
+		erro += BancoDeRegistradores(muxRegDest, muxMemParaReg, &regA, &regB);
+
+		// Execução da ULA (Controle da ULA recebe a entrada da UC e determina a operação
+		// a ser executada pela ULA, a qual aplica a operação aos registradores A e B).
+		muxUALFonteA = MuxUALFonteA();
+		muxUALFonteB = MuxUALFonteB();
 		ULAop = UALcontrole();
-		ULAres = UAL(ULAop, &ULA0);
+		ULAres = UAL(muxUALFonteA, muxUALFonteB, ULAop, &ULAZero);
+
+		// Execução das unidades que definirão tando o conteúdo como se deve ou não alterar
+		// o conteúdo de PC.
+		muxFontePC = MuxFontePC(ULAres);
+		muxBNE = MuxBNE(ULAZero);
+		saidaPortaAND = PortaLogicaAND(sinalDeControle.bits.PCEscCond, muxBNE);
+		saidaPortaOR = PortaLogicaOR(sinalDeControle.bits.PCEsc, saidaPortaAND);
 		
 		// Atribui os valores aos registradores globais, agora que o ciclo acabou;
-		EscreveNoIR(IRaux);
-		MDR = IRaux;
+		EscreveNoIR(conteudoMemoria);
+		MDR = conteudoMemoria;
 		RegistradorA = regA;
 		RegistradorB = regB;
-		EscreveNoPC(ULAres, ULA0);
+		EscreveNoPC(saidaPortaOR, muxFontePC);
 		SaidaUAL = ULAres;
+
+		// Altera o estado atual da UC.
 		estadoAtual = estadoFuturo;
 
 		// Confere se a operação e o campo de função são validos.
