@@ -316,7 +316,7 @@ int PortaLogicaOR(int entrada1, int entrada2) {
 	return entrada1 || entrada2;
 }
 
-void EscreveNoPC(int sinalControle, int conteudo) {
+void EscreveNoPC(unsigned int sinalControle, unsigned int conteudo) {
 	if(sinalControle)
 		PC = conteudo;
 }
@@ -335,7 +335,7 @@ int BancoDeRegistradores(unsigned int destino, int conteudo, int *RegATemp, int 
 	return 0;
 }
 
-int UAL(int A, int B, int op, int *UALZero) {
+int UAL(int A, int B, unsigned int op, int *UALZero) {
 	*UALZero = (A - B == 0) ? 1 : 0;
 
 	switch(op) {
@@ -352,7 +352,7 @@ int UAL(int A, int B, int op, int *UALZero) {
 	}
 }
 
-int LePalavraDaMemoria(unsigned int byteOffset, int* palavraLida) {
+int LePalavraDaMemoria(unsigned int byteOffset, unsigned int* palavraLida) {
 	if (byteOffset > TAMANHO_RAM - TAMANHO_PALAVRA)
 		return 1 << 2;
 
@@ -379,7 +379,7 @@ int EscrevePalavraNaMemoria(unsigned int byteOffset, unsigned int palavra) {
 	return 0;
 }
 
-int Memoria(int endereco, int* palavraLida) {
+int Memoria(unsigned int endereco, int* palavraLida) {
 	if(sinalDeControle.bits.LerMem)
 		return LePalavraDaMemoria(endereco, palavraLida);
 
@@ -445,7 +445,7 @@ void imprimeSaida(int ERROR) {
 	else if (ERROR >> 4 & 1)
 		printf("Término devido a acesso inválido ao Banco De Registradores.\n\n");
 
-	printf("PC=%-10u\tIR=%-10u\tMDR=%-10d\n", PC, IR.instrucao, MDR);
+	printf("PC=%-10u\tIR=%-10u\tMDR=%-10u\n", PC, IR.instrucao, MDR);
 	printf("A=%-10d\tB=%-10d\tAluOut=%-10d\n", RegistradorA, RegistradorB, SaidaUAL);
 	printf("Controle=%d\n\n", sinalDeControle);
 
@@ -496,7 +496,7 @@ int main(int argc, char *argv[]) {
 
 	int erro;
 
-	int conteudoMemoria;
+	unsigned int conteudoMemoria;
 	unsigned int regA, regB;
 	unsigned int ULAres, ULAop, ULAZero;
 	int muxIouD, muxRegDest, muxMemParaReg, muxUALFonteA, muxUALFonteB, muxFontePC, muxBNE;
