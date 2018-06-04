@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define ARQUIVO_ENTRADA "code.bin"
 #define TAMANHO_RAM 256
 #define TAMANHO_PALAVRA 4
 
@@ -13,7 +12,11 @@
 #define OR  3
 #define SLT 4
 
-typedef unsigned int registrador;
+enum {
+	PROGNAME,
+	ARQUIVO_ENTRADA,
+	NARGS,
+};
 
 typedef struct {
 	unsigned funct:6;
@@ -97,8 +100,6 @@ void InicializaVariaveisGlobais(){
 		RAM[i] = 0;
 	for(int i = 0; i < 32; i++)
 		BCO_REG[i] = 0;
-
-	BCO_REG[29] = TAMANHO_RAM;
 }
 
 void UnidadeDeControle(int codOp){
@@ -384,7 +385,7 @@ void EscreveNoIR(int instrucao) {
 
 int OperacaoValida(unsigned int op) {
 	if ((op != 0 && op != 35 && op != 43 && op !=  4 && op !=  2 && op != 3 && op != 20
-		     && op != 21 && op !=  8 && op != 12 && op !=  5) && estadoAtual > 1)
+		     && op != 21 && op !=  8 && op != 12 && op !=  5) && estadoAtual >= 1)
 		return 0;
 
 	return 1;
@@ -394,7 +395,7 @@ int CodigoOperacaoValida(unsigned int func) {
 	if (IR.r.op != 0)
 		return 1;
 
-	if (func != 32 && func != 34 && func != 36 && func != 37 && func != 42 && estadoAtual > 1)
+	if (func != 32 && func != 34 && func != 36 && func != 37 && func != 42 && estadoAtual >= 1)
 		return 0;
 
 	return 1;
@@ -438,10 +439,17 @@ int LeInstrucoesDaEntrada(char *arquivoEntrada) {
 	return byteOffset;
 }
 
-int main(int argc, char const *argv[]) {
+int main(int argc, char *argv[]) {
+
+	if (argc != NARGS) {
+		printf("ERRO! Argumentos para utilizar o programa: %s <nome-arquivo-entrada>\n", 
+				argv[PROGNAME]);
+		return -1;
+	}
 
 	InicializaVariaveisGlobais();
-	int instrucoes = LeInstrucoesDaEntrada(ARQUIVO_ENTRADA);
+
+	int instrucoes = LeInstrucoesDaEntrada(argv[ARQUIVO_ENTRADA]);
 	if (instrucoes <= 0) {
 		printf("ERRO! Não foi possível abrir o arquivo de entrada.\n");
 		return instrucoes;
