@@ -11,6 +11,7 @@ Rafael Farias Roque                10295412           - Caminho de dados, Altera
 
 #define TAMANHO_RAM 256
 #define TAMANHO_PALAVRA 4
+#define QUANTIDADE_REGISTRADORES 32
 
 // Operações da ULA
 #define ADD 0
@@ -86,7 +87,7 @@ unsigned int MDR;
 unsigned int SaidaUAL;
 unsigned int RegistradorA;
 unsigned int RegistradorB;
-int BCO_REG[32];
+int BCO_REG[QUANTIDADE_REGISTRADORES];
 char estadoAtual;
 char estadoFuturo;
 SINAL_CONTROLE sinalDeControle;
@@ -324,15 +325,24 @@ int BancoDeRegistradores(int *RegATemp, int *RegBTemp) {
 	*RegATemp = BCO_REG[IR.r.rs];
 	*RegBTemp = BCO_REG[IR.r.rt];
 
-	if(sinalDeControle.bits.EscReg == 1)
-		BCO_REG[MuxRegDest()] = MuxMemParaReg();
+	unsigned int destino = MuxRegDest();
+	int conteudo = MuxMemParaReg();
+
+	if(sinalDeControle.bits.EscReg == 1) {
+		if (destino == 0) 	// Tentativa de escrever no registrador $zero (proibido)
+			return 1 << 4;
+
+		BCO_REG[destino] = conteudo;
+	}
+
+	return 0;
 }
 
 int UAL(int op, int *UALZero) {
 	int a = MuxUALFonteA();
 	int b = MuxUALFonteB();
 	*UALZero = (a - b == 0) ? 1 : 0;
-	//printf("a: %d, b: %d\n", a, b);
+
 	switch(op) {
 		case 0:
 			return a + b;
@@ -347,21 +357,23 @@ int UAL(int op, int *UALZero) {
 	}
 }
 
-int LePalavraDaMemoria(unsigned int byteOffset) {
+int LePalavraDaMemoria(unsigned int byteOffset, int* palavraLida) {
 	if (byteOffset > TAMANHO_RAM - TAMANHO_PALAVRA)
-		return -1;
+		return 1 << 2;
 
 	MEMORIA memoria;
 
 	for (int i = TAMANHO_PALAVRA; i > 0 ; --i)
 		 memoria.byte[i-1] = RAM[byteOffset++];
 
-	return memoria.inteiro;
+	*palavraLida = memoria.inteiro;
+
+	return 0;
 }
 
 int EscrevePalavraNaMemoria(unsigned int byteOffset, unsigned int palavra) {
 	if (byteOffset > TAMANHO_RAM - TAMANHO_PALAVRA)
-		return -1;
+		return 1 << 2;
 
 	MEMORIA memoria;
 	memoria.inteiro = palavra;
@@ -372,13 +384,14 @@ int EscrevePalavraNaMemoria(unsigned int byteOffset, unsigned int palavra) {
 	return 0;
 }
 
-int Memoria() {
-	if(sinalDeControle.bits.LerMem) {
-		return LePalavraDaMemoria(MuxIouD());
-	}
-	else if(sinalDeControle.bits.EscMem) {
-		return EscrevePalavraNaMemoria(MuxIouD(), RegistradorB);
-	}
+int Memoria(int* palavraLida) {
+	unsigned int endereco = MuxIouD();
+
+	if(sinalDeControle.bits.LerMem)
+		return LePalavraDaMemoria(endereco, palavraLida);
+
+	else if(sinalDeControle.bits.EscMem)
+		return EscrevePalavraNaMemoria(endereco, RegistradorB);
 
 	return 0;
 }
@@ -391,19 +404,19 @@ void EscreveNoIR(int instrucao) {
 int OperacaoValida(unsigned int op) {
 	if ((op != 0 && op != 35 && op != 43 && op !=  4 && op !=  2 && op != 3 && op != 20
 		     && op != 21 && op !=  8 && op != 12 && op !=  5) && estadoAtual >= 1)
-		return 0;
-
-	return 1;
-}
-
-int CodigoOperacaoValida(unsigned int func) {
-	if (IR.r.op != 0)
 		return 1;
 
-	if (func != 32 && func != 34 && func != 36 && func != 37 && func != 42 && estadoAtual >= 1)
+	return 0;
+}
+
+int CampoDeFuncaoValido(unsigned int func) {
+	if (IR.r.op != 0)
 		return 0;
 
-	return 1;
+	if (func != 32 && func != 34 && func != 36 && func != 37 && func != 42 && estadoAtual >= 1)
+		return 1 << 3;
+
+	return 0;
 }
 
 int LeInstrucoesDaEntrada(char *arquivoEntrada) {
@@ -426,81 +439,47 @@ int LeInstrucoesDaEntrada(char *arquivoEntrada) {
 
 	return byteOffset;
 }
-void imprimeSaida(int ERROR){
 
-	switch(ERROR){
-		case 0:
-			printf("Término devido à tentariva de execução de instrução inválida.\n");
-		break;
+void imprimeSaida(int ERROR) {
 
-		case 1:
-			printf("Término devido a acesso inválido de memória.\n");
-		break;
+	printf("Status da Saída: ");
+	if (ERROR & 1)
+		printf("Término devido à tentativa de execução de instrução inválida.\n\n");
+	else if (ERROR >> 2 & 1)
+		printf("Término devido a acesso inválido de memória.\n\n");
+	else if (ERROR >> 3 & 1)
+		printf("Término devido à operação inválida da ULA.\n\n");
+	else if (ERROR >> 4 & 1)
+		printf("Término devido a acesso inválido ao Banco De Registradores.\n\n");
 
-		case 2:
-			printf("Término devido à operação inválida da ULA.\n");
-		break;
+	printf("PC=%u\t IR=%u\t MDR=%u\n", PC, IR.instrucao, MDR);
+	printf("A=%u\t B=%u\t AluOut=%u\n", RegistradorA, RegistradorB, SaidaUAL);
+	printf("Controle=%d\n\n", sinalDeControle);
 
-		case 3:
-			printf("Término devido a acesso inválido ao Banco De Registradores.\n");
-		break;
-
-	}
-
-	printf("PC: %u\t IR: %u\t MDR: %u\n", PC, IR.instrucao, MDR);
-	printf("A: %u\t B: %u\t AluOut: %u\n", RegistradorA, RegistradorB, SaidaUAL);
+	char nomeRegistrador[QUANTIDADE_REGISTRADORES][3] = {"r0", "at", "v0", "v1", "a0", "a1",
+		"a2", "a3", "t0", "t1", "t2", "t3", "t4", "t5", "t6", "t7", "s0", "s1", "s2",
+		"s3", "s4", "s5", "s6", "s7", "t8", "t9", "k0", "k1", "gp", "sp", "fp", "ra"};
 
 	printf("Banco De Registradores\n");	
-	printf("R00(r0)=%d\t R08(t0)=%d\t R16(s0)=%d\t R24(t8)=%d\n", BCO_REG[0], BCO_REG[8],
-																  BCO_REG[16], BCO_REG[24]);
+	for (int i = 0; i < 8; ++i) {
+		for (int j = 0; j < 4; ++j) {
+			int reg = i + (j * 8);
+			printf("R%02d(%2s)=%d\t", reg, nomeRegistrador[reg], BCO_REG[reg]);
+		}
+		printf("\n");
+	}
 
-	printf("R01(at)=%d\t R09(t1)=%d\t R17(s1)=%d\t R25(t9)=%d\n", BCO_REG[1], BCO_REG[9],
-																  BCO_REG[17], BCO_REG[25]);
+	printf("\n");
 
-	printf("R02(v0)=%d\t R10(t2)=%d\t R18(s2)=%d\t R26(k0)=%d\n", BCO_REG[2], BCO_REG[10],
-																  BCO_REG[18], BCO_REG[26]);
-
-	printf("R03(v1)=%d\t R11(t3)=%d\t R19(s3)=%d\t R27(k1)=%d\n", BCO_REG[3], BCO_REG[11],
-																  BCO_REG[19], BCO_REG[27]);
-
-	printf("R04(a0)=%d\t R12(t4)=%d\t R20(s4)=%d\t R28(gp)=%d\n", BCO_REG[4], BCO_REG[12],
-																  BCO_REG[20], BCO_REG[28]);
-
-	printf("R05(a1)=%d\t R13(t5)=%d\t R21(s5)=%d\t R29(sp)=%d\n", BCO_REG[5], BCO_REG[13],
-																  BCO_REG[21], BCO_REG[29]);
-
-	printf("R06(a2)=%d\t R14(t6)=%d\t R22(s6)=%d\t R30(fp)=%d\n", BCO_REG[6], BCO_REG[14],
-																  BCO_REG[22], BCO_REG[30]);
-
-	printf("R07(a3)=%d\t R15(t7)=%d\t R23(s7)=%d\t R31(ra)=%d\n", BCO_REG[7], BCO_REG[15],
-																  BCO_REG[23], BCO_REG[31]);
-	MEMORIA memoria;
+	int conteudoMemoria;
 	printf("Memória (endereços a byte) \n");
-	for (int i = 0; i < 8; i++)
-	{
-		memoria.byte[3] = RAM[(i*4)];
-		memoria.byte[2] = RAM[(i*4)+1];
-		memoria.byte[1] = RAM[(i*4)+2];
-		memoria.byte[0] = RAM[(i*4)+3];
-		printf("[%d]%u\t ", i*4 ,memoria.inteiro);
-
-		memoria.byte[3] = RAM[((i+8)*4)];
-		memoria.byte[2] = RAM[((i+8)*4)+1];
-		memoria.byte[1] = RAM[((i+8)*4)+2];
-		memoria.byte[0] = RAM[((i+8)*4)+3];
-		printf("[%d]%u\t ", (i+8)*4 ,memoria.inteiro);
-
-		memoria.byte[3] = RAM[((i+16)*4)];
-		memoria.byte[2] = RAM[((i+16)*4)+1];
-		memoria.byte[1] = RAM[((i+16)*4)+2];
-		memoria.byte[0] = RAM[((i+16)*4)+3];
-		printf("[%d]%u\t ", (i+16)*4 ,memoria.inteiro);
-
-		memoria.byte[3] = RAM[((i+24)*4)];
-		memoria.byte[2] = RAM[((i+24)*4)+1];
-		memoria.byte[1] = RAM[((i+24)*4)+2];
-		memoria.byte[0] = RAM[((i+24)*4)+3];
-		printf("[%d]%u\t \n", (i+24)*4 ,memoria.inteiro);
+	for (int i = 0; i < 8; i++) {
+		for (int j = 0; j < 4; ++j) {
+			int posMemoria = (i * 4) + (j * 8 * 4);
+			LePalavraDaMemoria(posMemoria, &conteudoMemoria);
+			printf("[%02d]=%-10u ", posMemoria, conteudoMemoria);
+		}
+		printf("\n");
 	}
 
 }
@@ -515,24 +494,28 @@ int main(int argc, char *argv[]) {
 
 	InicializaVariaveisGlobais();
 
-	int instrucoes = LeInstrucoesDaEntrada(argv[ARQUIVO_ENTRADA]);
-	if (instrucoes <= 0) {
+	if (!LeInstrucoesDaEntrada(argv[ARQUIVO_ENTRADA])) {
 		printf("ERRO! Não foi possível abrir o arquivo de entrada.\n");
-		return instrucoes;
+		return -2;
 	}
 
 	MEMORIA memoria;
+
+	int erro;
 
 	unsigned int IRaux, ULA0;
 	unsigned int regA, regB;
 	unsigned int ULAres, ULAop;
 	do {
+		erro = 0;
+		// Chama as unidades funcionais para executarem.
 		UnidadeDeControle(IR.j.op);
-		IRaux = Memoria();
-		BancoDeRegistradores(&regA, &regB);
+		erro += Memoria(&IRaux);
+		erro += BancoDeRegistradores(&regA, &regB);
 		ULAop = UALcontrole();
 		ULAres = UAL(ULAop, &ULA0);
 		
+		// Atribui os valores aos registradores globais, agora que o ciclo acabou;
 		EscreveNoIR(IRaux);
 		MDR = IRaux;
 		RegistradorA = regA;
@@ -540,9 +523,13 @@ int main(int argc, char *argv[]) {
 		EscreveNoPC(ULAres, ULA0);
 		SaidaUAL = ULAres;
 		estadoAtual = estadoFuturo;
-	} while (OperacaoValida(IR.j.op) && CodigoOperacaoValida(IR.r.funct));
 
-	imprimeSaida();
+		// Confere se a operação e o campo de função são validos.
+		erro += OperacaoValida(IR.j.op);
+		erro += CampoDeFuncaoValido(IR.r.funct);
+	} while (!erro);
+
+	imprimeSaida(erro);
 
 	return 0;
 }
