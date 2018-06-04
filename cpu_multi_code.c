@@ -326,7 +326,7 @@ int UAL(int op, int *UALZero) {
 	int a = MuxUALFonteA();
 	int b = MuxUALFonteB();
 	*UALZero = (a - b == 0) ? 1 : 0;
-	printf("a: %d, b: %d\n", a, b);
+	//printf("a: %d, b: %d\n", a, b);
 	switch(op) {
 		case 0:
 			return a + b;
@@ -437,6 +437,65 @@ int LeInstrucoesDaEntrada(char *arquivoEntrada) {
 
 	return byteOffset;
 }
+void imprimeSaida(){
+	printf("PC: %u\t IR: %u\t MDR: %u\n", PC, IR.instrucao, MDR);
+	printf("A: %u\t B: %u\t AluOut: %u\n", RegistradorA, RegistradorB, SaidaUAL);
+
+	printf("Banco De Registradores\n");	
+	printf("R00(r0)=%d\t R08(t0)=%d\t R16(s0)=%d\t R24(t8)=%d\n", BCO_REG[0], BCO_REG[8],
+																  BCO_REG[16], BCO_REG[24]);
+
+	printf("R01(at)=%d\t R09(t1)=%d\t R17(s1)=%d\t R25(t9)=%d\n", BCO_REG[1], BCO_REG[9],
+																  BCO_REG[17], BCO_REG[25]);
+
+	printf("R02(v0)=%d\t R10(t2)=%d\t R18(s2)=%d\t R26(k0)=%d\n", BCO_REG[2], BCO_REG[10],
+																  BCO_REG[18], BCO_REG[26]);
+
+	printf("R03(v1)=%d\t R11(t3)=%d\t R19(s3)=%d\t R27(k1)=%d\n", BCO_REG[3], BCO_REG[11],
+																  BCO_REG[19], BCO_REG[27]);
+
+	printf("R04(a0)=%d\t R12(t4)=%d\t R20(s4)=%d\t R28(gp)=%d\n", BCO_REG[4], BCO_REG[12],
+																  BCO_REG[20], BCO_REG[28]);
+
+	printf("R05(a1)=%d\t R13(t5)=%d\t R21(s5)=%d\t R29(sp)=%d\n", BCO_REG[5], BCO_REG[13],
+																  BCO_REG[21], BCO_REG[29]);
+
+	printf("R06(a2)=%d\t R14(t6)=%d\t R22(s6)=%d\t R30(fp)=%d\n", BCO_REG[6], BCO_REG[14],
+																  BCO_REG[22], BCO_REG[30]);
+
+	printf("R07(a3)=%d\t R15(t7)=%d\t R23(s7)=%d\t R31(ra)=%d\n", BCO_REG[7], BCO_REG[15],
+																  BCO_REG[23], BCO_REG[31]);
+	MEMORIA memoria;
+	printf("Memória (endereços a byte) \n");
+	for (int i = 0; i < 8; i++)
+	{
+		memoria.byte[3] = RAM[(i*4)];
+		memoria.byte[2] = RAM[(i*4)+1];
+		memoria.byte[1] = RAM[(i*4)+2];
+		memoria.byte[0] = RAM[(i*4)+3];
+		printf("[%d]%u\t ", i ,memoria.inteiro);
+
+		memoria.byte[3] = RAM[((i+8)*4)];
+		memoria.byte[2] = RAM[((i+8)*4)+1];
+		memoria.byte[1] = RAM[((i+8)*4)+2];
+		memoria.byte[0] = RAM[((i+8)*4)+3];
+		printf("[%d]%u\t ", (i+8) ,memoria.inteiro);
+
+		memoria.byte[3] = RAM[((i+16)*4)];
+		memoria.byte[2] = RAM[((i+16)*4)+1];
+		memoria.byte[1] = RAM[((i+16)*4)+2];
+		memoria.byte[0] = RAM[((i+16)*4)+3];
+		printf("[%d]%u\t ", (i+16) ,memoria.inteiro);
+
+		memoria.byte[3] = RAM[((i+24)*4)];
+		memoria.byte[2] = RAM[((i+24)*4)+1];
+		memoria.byte[1] = RAM[((i+24)*4)+2];
+		memoria.byte[0] = RAM[((i+24)*4)+3];
+		printf("[%d]%u\t \n", (i+24) ,memoria.inteiro);
+	}
+
+
+}
 
 int main(int argc, char const *argv[]) {
 
@@ -450,7 +509,7 @@ int main(int argc, char const *argv[]) {
 
 	MEMORIA memoria;
 	int count = 0;
-	printf("RAM: \n");
+/*	printf("RAM: \n");
 	for (int i = 0; i < 35; i++)
 	{
 		memoria.byte[3] = RAM[(i*4)];
@@ -458,28 +517,28 @@ int main(int argc, char const *argv[]) {
 		memoria.byte[1] = RAM[(i*4)+2];
 		memoria.byte[0] = RAM[(i*4)+3];
 		printf("%u\n", memoria.inteiro);
-	}
+	}*/
 
 	unsigned int IRaux, ULA0;
 	unsigned int regA, regB;
 	unsigned int ULAres, ULAop;
 	do {
 		//printf("count = %d, t8 = %d\n", count, BCO_REG[24]);
-		printf("IR = %u\tPC = %u\n", IR.instrucao, PC);
-		printf("Operação: %d\n", IR.j.op);
+		//printf("IR = %u\tPC = %u\n", IR.instrucao, PC);
+		//printf("Operação: %d\n", IR.j.op);
 
 		UnidadeDeControle(IR.j.op);
 		IRaux = Memoria();
 		BancoDeRegistradores(&regA, &regB);
 		ULAop = UALcontrole();
 		ULAres = UAL(ULAop, &ULA0);
-		printf("ALUout= %d\n", SaidaUAL);
+		//printf("ALUout= %d\n", SaidaUAL);
 
-		printf("RegA = %d, RegB = %d\n", RegistradorA, RegistradorB);
-		printf("$t0 = %d, $t1 = %d\n", BCO_REG[8], BCO_REG[9]);
-		printf("ULAop: %d  Campo de função: %d\n", ULAop, IR.r.funct);
-		printf("count =  %d  estadoAtual =  %d estadoFuturo = %d\n", count, estadoAtual, estadoFuturo);
-		imprimeTUDO();
+		//printf("RegA = %d, RegB = %d\n", RegistradorA, RegistradorB);
+		//printf("$t0 = %d, $t1 = %d\n", BCO_REG[8], BCO_REG[9]);
+		//printf("ULAop: %d  Campo de função: %d\n", ULAop, IR.r.funct);
+		//printf("count =  %d  estadoAtual =  %d estadoFuturo = %d\n", count, estadoAtual, estadoFuturo);
+		//imprimeTUDO();
 		
 		EscreveNoIR(IRaux);
 		MDR = IRaux;
@@ -489,28 +548,6 @@ int main(int argc, char const *argv[]) {
 		SaidaUAL = ULAres;
 		estadoAtual = estadoFuturo;
 	} while (OperacaoValida(IR.j.op) && CodigoOperacaoValida(IR.r.funct) && count++ < 440);
-
-	printf("PC: %u\n", PC);
-	printf("IR: %u\n", IR.instrucao);
-	printf("MDR: %u\n", MDR);
-	printf("A: %u\n", RegistradorA);
-	printf("B: %u\n", RegistradorB);
-	printf("AluOut: %u\n", SaidaUAL);
-	printf("count = %d, t8 = %d\n", count, BCO_REG[24]);
-
-	for (int i = 0; i < 32; ++i) {
-		printf("Registrador %d: %d\n", i, BCO_REG[i]);
-	}
-	printf("RAM: \n");
-	for (int i = 0; i < 32; i++)
-	{
-		memoria.byte[3] = RAM[(i*4)];
-		memoria.byte[2] = RAM[(i*4)+1];
-		memoria.byte[1] = RAM[(i*4)+2];
-		memoria.byte[0] = RAM[(i*4)+3];
-		printf("%u ", memoria.inteiro);
-	}
-	printf("\n");
-
+	imprimeSaida();
 	return 0;
 }
